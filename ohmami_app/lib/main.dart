@@ -1,12 +1,13 @@
-// lib/main.dart
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:multicast_dns/multicast_dns.dart';
 
 void main() => runApp(MyApp());
 
 class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
   @override
   State<MyApp> createState() => _MyAppState();
 }
@@ -14,8 +15,67 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   final TextEditingController _ipController = TextEditingController(text: "http://192.168.1.10:8000");
   WebSocketChannel? _channel;
-  List<String> _log = [];
+  final List<String> _log = [];
   final TextEditingController _cmdController = TextEditingController();
+  bool _isSearching = false;
+
+  Future<List<String>> discoverAgents() async {
+    final MDnsClient client = MDnsClient();
+    final List<String> discovered = [];
+
+    try {
+      await client.start();
+      await for (final PtrResourceRecord ptr in client.lookup<PtrResourceRecord>(
+          ResourceRecordQuery.serverPointer('_ohmami._tcp.local'))) {
+        await for (final SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
+            ResourceRecordQuery.service(ptr.domainName))) {
+          await for (final IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
+              ResourceRecordQuery.addressIPv4(srv.target))) {
+            discovered.add('http://${ip.address.address}:${srv.port}');
+          }
+        }
+      }
+    } catch (e) {
+      print("mDNS discovery error: $e");
+    } finally {
+      client.stop();
+    }
+
+    return discovered;
+  }
+
+  Future<void> _searchAgents() async {
+    setState(() {
+      _isSearching = true;
+      _log.insert(0, "Searching for agents...");
+    });
+
+    try {
+      final agents = await discoverAgents();
+      setState(() {
+        if (agents.isEmpty) {
+          _log.insert(0, "No agents found");
+        } else {
+          // Записываем первого найденного агента в _ipController
+          _ipController.text = agents.first;
+          _log.insert(0, "Found ${agents.length} agent(s):");
+          for (var agent in agents) {
+            _log.insert(0, "  - $agent");
+          }
+          _log.insert(0, "Selected agent: ${agents.first}");
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _log.insert(0, "Error searching for agents: $e");
+      });
+    } finally {
+      setState(() {
+        _isSearching = false;
+      });
+    }
+  }
+
 
   void _ping() async {
     final url = "${_ipController.text.trim()}/ping";
@@ -32,7 +92,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _connectWs() {
-    final wsUrl = _ipController.text.trim().replaceFirst("http", "ws") + "/ws";
+    final wsUrl = "${_ipController.text.trim().replaceFirst("http", "ws")}/ws";
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _channel!.stream.listen((message) {
@@ -75,6 +135,15 @@ class _MyAppState extends State<MyApp> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // Автоматический поиск агентов при запуске приложения
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _searchAgents();
+    });
+  }
+
+  @override
   void dispose() {
     _channel?.sink.close();
     super.dispose();
@@ -95,6 +164,24 @@ class _MyAppState extends State<MyApp> {
               ElevatedButton(onPressed: _ping, child: Text("Ping")),
               SizedBox(width: 8),
               ElevatedButton(onPressed: _connectWs, child: Text("Connect WS")),
+              SizedBox(width: 8),
+              ElevatedButton(
+                onPressed: _isSearching ? null : _searchAgents,
+                child: _isSearching 
+                  ? Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 8),
+                        Text("Searching..."),
+                      ],
+                    )
+                  : Text("Refresh Agents")
+              ),
             ]),
             SizedBox(height: 8),
             Row(children: [

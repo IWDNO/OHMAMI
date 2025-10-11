@@ -2,10 +2,34 @@
 import asyncio
 import json
 from typing import List
+from zeroconf import Zeroconf, ServiceInfo
+import socket
 
 import psutil
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+
+
+def register_mdns_service(port: int = 8000):
+    desc = {'path': '/ws'}
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    service_type = "_ohmami._tcp.local."
+    service_name = f"Ohmami Agent on {hostname}._ohmami._tcp.local."
+
+    info = ServiceInfo(
+        type_=service_type,
+        name=service_name,
+        addresses=[socket.inet_aton(local_ip)],
+        port=port,
+        properties=desc,
+        server=f"{hostname}.local."
+    )
+
+    zeroconf = Zeroconf()
+    zeroconf.register_service(info)
+    print(f"mDNS service registered: {service_name} at {local_ip}:{port}")
+    return zeroconf, info
 
 app = FastAPI()
 
@@ -83,4 +107,11 @@ async def send_metrics_periodically(ws: WebSocket):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    
+    zeroconf, info = register_mdns_service(port=8000)
+    try:
+        uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    finally:
+        zeroconf.unregister_service(info)
+        zeroconf.close()
+
