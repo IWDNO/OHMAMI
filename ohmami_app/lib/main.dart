@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import './widgets/connection_widget.dart';
-import './widgets/dummy_widget.dart';
+import './widgets/volume_widget.dart';
 
 void main() => runApp(App());
 
@@ -18,7 +18,7 @@ class _AppState extends State<App> {
 
   final List<Widget> _pages = const [
     ConnectionWidget(),
-    DummyWidget(),
+    VolumeWidget(),
   ];
 
   @override
@@ -26,9 +26,6 @@ class _AppState extends State<App> {
     return MaterialApp(
       title: 'OHMAMI!',
       home: Scaffold(
-        appBar: AppBar(
-          title: const Text('OHMAMI!'),
-        ),
         body: IndexedStack(
           index: _currentIndex,
           children: _pages,
@@ -42,12 +39,12 @@ class _AppState extends State<App> {
           },
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.private_connectivity_outlined),
+              icon: Icon(Icons.wifi_tethering), // Более подходящая иконка для подключения
               label: 'Connection',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.star),
-              label: 'Dummy',
+              icon: Icon(Icons.volume_up),
+              label: 'Volume',
             ),
           ],
         ),

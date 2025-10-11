@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../services/agent_discovery.dart'; 
+import '../services/connection_service.dart'; 
 
 
 class ConnectionWidget extends StatefulWidget {
@@ -12,7 +11,6 @@ class ConnectionWidget extends StatefulWidget {
   State<ConnectionWidget> createState() => _ConnectionWidgetState();
 }
 
-//TODO: возможно нужно по другому соединение сохранять, не через AutomaticKeepAliveClientMixin, а может держать его в другом месте, хз
 class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
@@ -21,16 +19,16 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
   WebSocketChannel? _channel;
   final List<String> _log = [];
   final TextEditingController _cmdController = TextEditingController();
-  bool _isSearching = false;
+  
+  final ConnectionService _connectionService = ConnectionService();
 
   Future<void> _searchAgents() async {
     setState(() {
-      _isSearching = true;
       _log.insert(0, "Searching for agents...");
     });
 
     try {
-      final agents = await AgentDiscovery.discoverAgents();
+      final agents = await _connectionService.searchAgents();
       setState(() {
         if (agents.isEmpty) {
           _log.insert(0, "No agents found");
@@ -48,20 +46,18 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
       setState(() {
         _log.insert(0, "Error searching for agents: $e");
       });
-    } finally {
-      setState(() {
-        _isSearching = false;
-      });
     }
   }
 
 
   void _ping() async {
-    final url = "${_ipController.text.trim()}/ping";
+    // Обновляем URL в сервисе
+    _connectionService.setBaseUrl(_ipController.text.trim());
+    
     try {
-      final r = await http.get(Uri.parse(url)).timeout(Duration(seconds: 3));
+      final isConnected = await _connectionService.ping();
       setState(() {
-        _log.insert(0, "PING: ${r.statusCode} ${r.body}");
+        _log.insert(0, "PING: ${isConnected ? 'Connected' : 'Failed'}");
       });
     } catch (e) {
       setState(() {
@@ -71,7 +67,17 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
   }
 
   void _connectWs() {
-    final wsUrl = "${_ipController.text.trim().replaceFirst("http", "ws")}/ws";
+    // Обновляем URL в сервисе
+    _connectionService.setBaseUrl(_ipController.text.trim());
+    
+    final wsUrl = _connectionService.getWebSocketUrl();
+    if (wsUrl == null) {
+      setState(() {
+        _log.insert(0, "WS ERROR: No base URL set");
+      });
+      return;
+    }
+    
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
       _channel!.stream.listen((message) {
@@ -147,8 +153,8 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
             ]),
             Row(children: [
               ElevatedButton(
-                onPressed: _isSearching ? null : _searchAgents,
-                child: _isSearching 
+                onPressed: _connectionService.isSearching ? null : _searchAgents,
+                child: _connectionService.isSearching 
                   ? Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
