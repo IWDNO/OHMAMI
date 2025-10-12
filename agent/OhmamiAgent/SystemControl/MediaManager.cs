@@ -15,7 +15,7 @@ namespace OhmamiAgent.SystemControl
         private GlobalSystemMediaTransportControlsSession? CurrentSession =>
             _sessionManager?.GetCurrentSession();
 
-        public async Task<MediaStatus?> GetStatusAsync()
+        public async Task<Object?> GetStatusAsync()
         {
             var session = CurrentSession;
             if (session == null) return null;
@@ -41,12 +41,12 @@ namespace OhmamiAgent.SystemControl
                 Console.WriteLine($"Failed to read thumbnail: {ex.Message}");
             }
 
-            return new MediaStatus
+            return new
             {
+                timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
                 Title = mediaProps.Title,
                 Artist = mediaProps.Artist,
                 Album = mediaProps.AlbumTitle,
-                Subtitle = mediaProps.Subtitle,
                 PlaybackStatus = playbackInfo.PlaybackStatus.ToString(),
                 ThumbnailBase64 = thumbnailBase64
             };
@@ -64,15 +64,15 @@ namespace OhmamiAgent.SystemControl
         public async Task PreviousAsync() =>
             await CurrentSession?.TrySkipPreviousAsync();
 
-        public class MediaStatus
-        {
-            public string? Title { get; set; }
-            public string? Subtitle { get; set; }
+        //public class MediaStatus
+        //{
+        //    public string? Title { get; set; }
+        //    public string? Subtitle { get; set; }
 
-            public string? Artist { get; set; }
-            public string? Album { get; set; }
-            public string? PlaybackStatus { get; set; }
-            public string? ThumbnailBase64 { get; set; }
-        }
+        //    public string? Artist { get; set; }
+        //    public string? Album { get; set; }
+        //    public string? PlaybackStatus { get; set; }
+        //    public string? ThumbnailBase64 { get; set; }
+        //}
     }
 }
