@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import './widgets/connection_widget.dart';
 import './widgets/volume_widget.dart';
+import './widgets/media_widget.dart';
 
 void main() => runApp(App());
 
@@ -19,6 +20,7 @@ class _AppState extends State<App> {
   final List<Widget> _pages = const [
     ConnectionWidget(),
     VolumeWidget(),
+    MediaWidget(),
   ];
 
   @override
@@ -45,6 +47,10 @@ class _AppState extends State<App> {
             BottomNavigationBarItem(
               icon: Icon(Icons.volume_up),
               label: 'Volume',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.play_circle_outline),
+              label: 'Media',
             ),
           ],
         ),

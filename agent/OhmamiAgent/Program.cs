@@ -1,21 +1,16 @@
-using Makaretu.Dns;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using OhmamiAgent;
-using OhmamiAgent.Api;
 using OhmamiAgent.Mdns;
-using OhmamiAgent.Metrics;
 using OhmamiAgent.SystemControl;
-using OhmamiAgent.Ws;
 
 var builder = WebApplication.CreateBuilder(args);
 
 
 builder.Services.Configure<AppConfig>(builder.Configuration);
-
 builder.Services.AddControllers();
+
+
 builder.Services.AddSingleton<AudioManager>();
+builder.Services.AddSingleton<MediaManager>();
 builder.Services.AddSingleton<OhmamiAgent.Ws.WebSocketManager>();
 builder.Services.AddSingleton<MdnsPublisher>();
 //builder.Services.AddHostedService<MetricsHostedService>();
@@ -23,6 +18,10 @@ builder.Services.AddSingleton<MdnsPublisher>();
 var app = builder.Build();
 app.UseWebSockets();
 app.MapControllers();
+
+
+var mediaManager = app.Services.GetRequiredService<MediaManager>();
+await mediaManager.InitializeAsync();
 
 var mdns = app.Services.GetRequiredService<MdnsPublisher>();
 await mdns.RegisterAsync(app.Configuration);

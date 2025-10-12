@@ -13,11 +13,14 @@ namespace OhmamiAgent.Api
     public class MediaController : ControllerBase
     {
         private readonly AudioManager _audio;
+        private readonly MediaManager _media;
 
 
-        public MediaController(AudioManager audio)
+        public MediaController(AudioManager audio, MediaManager media)
         {
             _audio = audio;
+            _media = media;
+
         }
 
         [HttpGet("volume")]
@@ -78,6 +81,43 @@ namespace OhmamiAgent.Api
             {
                 return BadRequest(new { status = "error", message = ex.Message });
             }
+        }
+
+        //-----------------
+
+        [HttpGet("media/info")]
+        public async Task<IActionResult> Info()
+        {
+            var data = await _media.GetStatusAsync();
+            return Ok(new { status = "ok", data = data });
+        }
+
+        [HttpPost("media/play")]
+        public async Task<IActionResult> Play()
+        {
+            await _media.PlayAsync();
+            return Ok(new { status = "ok", message = "Playback started" });
+        }
+
+        [HttpPost("media/pause")]
+        public async Task<IActionResult> Pause()
+        {
+            await _media.PauseAsync();
+            return Ok(new { status = "ok", message = "Playback paused" });
+        }
+
+        [HttpPost("media/next")]
+        public async Task<IActionResult> Next()
+        {
+            await _media.NextAsync();
+            return Ok(new { status = "ok", message = "Skipped to next track" });
+        }
+
+        [HttpPost("media/previous")]
+        public async Task<IActionResult> Previous()
+        {
+            await _media.PreviousAsync();
+            return Ok(new { status = "ok", message = "Skipped to previous track" });
         }
     }
 }
