@@ -32,7 +32,7 @@ namespace OhmamiAgent.Ws
 
             var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var senderTask = Task.Run(() => MetricsSenderLoop(ws, linkedCts.Token), linkedCts.Token);
-            var mediaTask = Task.Run(() => MediaSenderLoop(ws, linkedCts.Token), linkedCts.Token);
+            //var mediaTask = Task.Run(() => MediaSenderLoop(ws, linkedCts.Token), linkedCts.Token);
 
             var buffer = new byte[4096];
             try
