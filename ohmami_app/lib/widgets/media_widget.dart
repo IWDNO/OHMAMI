@@ -83,11 +83,7 @@ class _MediaWidgetState extends State<MediaWidget> {
   }
 
   Future<void> _request(String endpoint) async {
-    final response = await _connectionService.request('POST', endpoint);
-    if (response.statusCode == 200) {
-      await Future.delayed(const Duration(milliseconds: 100)); //FIXME иначе не успевает обновиться
-      await _loadMediaInfo();
-    }
+    await _connectionService.request('POST', endpoint);
   }
 
   String get _title {

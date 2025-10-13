@@ -6,32 +6,61 @@ namespace OhmamiAgent.SystemControl
     public class MediaManager
     {
         private GlobalSystemMediaTransportControlsSessionManager? _sessionManager;
-        private GlobalSystemMediaTransportControlsSession? CurrentSession =>
-            _sessionManager?.GetCurrentSession();
+        private GlobalSystemMediaTransportControlsSession? _attachedSession;
 
         public event Func<object, Task>? StatusChanged;
+
+        private GlobalSystemMediaTransportControlsSession? CurrentSession =>
+            _sessionManager?.GetCurrentSession();
 
         public async Task InitializeAsync()
         {
             _sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-            
-            void attach(GlobalSystemMediaTransportControlsSession? s)
-            {
-                if (s == null) return;
-                s.MediaPropertiesChanged += async (_, __) => { System.Console.WriteLine("MediaPropertiesChanged"); await EmitStatusAsync(); };
-                s.PlaybackInfoChanged += async (_, __) => { System.Console.WriteLine("PlaybackInfoChanged"); await EmitStatusAsync(); };
-            }
-
-            attach(CurrentSession);
 
             _sessionManager.CurrentSessionChanged += async (_, __) =>
             {
-                System.Console.WriteLine("CurrentSessionChanged");
-                attach(CurrentSession);
+                AttachTo(CurrentSession);
                 await EmitStatusAsync();
             };
 
+            AttachTo(CurrentSession);
             await EmitStatusAsync();
+        }
+
+        private void AttachTo(GlobalSystemMediaTransportControlsSession? session)
+        {
+            if (_attachedSession != null)
+            {
+                _attachedSession.MediaPropertiesChanged -= OnMediaPropsChangedAsync;
+                _attachedSession.PlaybackInfoChanged -= OnPlaybackInfoChangedAsync;
+                _attachedSession = null;
+            }
+
+            if (session != null)
+            {
+                _attachedSession = session;
+                _attachedSession.MediaPropertiesChanged += OnMediaPropsChangedAsync;
+                _attachedSession.PlaybackInfoChanged += OnPlaybackInfoChangedAsync;
+            }
+        }
+
+        private async void OnMediaPropsChangedAsync(GlobalSystemMediaTransportControlsSession s, object e)
+        {
+            try { await EmitStatusAsync(); } catch(Exception ex) { System.Console.WriteLine(ex); }
+        }
+
+        private async void OnPlaybackInfoChangedAsync(GlobalSystemMediaTransportControlsSession s, object e)
+        {
+            try { await EmitStatusAsync(); } catch (Exception ex) { System.Console.WriteLine(ex); }
+        }
+
+        private async Task EmitStatusAsync()
+        {
+            var data = await GetStatusAsync();
+            if (data != null && StatusChanged != null)
+            {
+                try { await StatusChanged.Invoke(data); } catch { }
+            }
         }
 
         public async Task<Object?> GetStatusAsync()
@@ -39,11 +68,21 @@ namespace OhmamiAgent.SystemControl
             var session = CurrentSession;
             if (session == null) return null;
 
-            var mediaProps = await session.TryGetMediaPropertiesAsync();
+            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties? mediaProps = null;
+            try
+            {
+                mediaProps = await session.TryGetMediaPropertiesAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"GetStatusAsync: TryGetMediaPropertiesAsync failed: {ex.Message}");
+            }
+            if (mediaProps == null) return null;
+
             var playbackInfo = session.GetPlaybackInfo();
+            var playbackStatus = playbackInfo?.PlaybackStatus.ToString() ?? "Unknown";
 
             string? thumbnailBase64 = null;
-
             try
             {
                 if (mediaProps.Thumbnail != null)
@@ -66,19 +105,11 @@ namespace OhmamiAgent.SystemControl
                 title = mediaProps.Title,
                 artist = mediaProps.Artist,
                 album = mediaProps.AlbumTitle,
-                playbackStatus = playbackInfo.PlaybackStatus.ToString(),
+                playbackStatus = playbackStatus,
                 thumbnailBase64 = thumbnailBase64
             };
         }
 
-        private async Task EmitStatusAsync()
-        {
-            var data = await GetStatusAsync();
-            if (data != null && StatusChanged != null)
-            {
-                try { await StatusChanged.Invoke(data); } catch { }
-            }
-        }
         public async Task PlayAsync() =>
             await CurrentSession?.TryPlayAsync();
 
