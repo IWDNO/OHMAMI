@@ -6,14 +6,33 @@ namespace OhmamiAgent.SystemControl
     public class MediaManager
     {
         private GlobalSystemMediaTransportControlsSessionManager? _sessionManager;
+        private GlobalSystemMediaTransportControlsSession? CurrentSession =>
+            _sessionManager?.GetCurrentSession();
+
+        public event Func<object, Task>? StatusChanged;
 
         public async Task InitializeAsync()
         {
             _sessionManager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-        }
+            
+            void attach(GlobalSystemMediaTransportControlsSession? s)
+            {
+                if (s == null) return;
+                s.MediaPropertiesChanged += async (_, __) => { System.Console.WriteLine("MediaPropertiesChanged"); await EmitStatusAsync(); };
+                s.PlaybackInfoChanged += async (_, __) => { System.Console.WriteLine("PlaybackInfoChanged"); await EmitStatusAsync(); };
+            }
 
-        private GlobalSystemMediaTransportControlsSession? CurrentSession =>
-            _sessionManager?.GetCurrentSession();
+            attach(CurrentSession);
+
+            _sessionManager.CurrentSessionChanged += async (_, __) =>
+            {
+                System.Console.WriteLine("CurrentSessionChanged");
+                attach(CurrentSession);
+                await EmitStatusAsync();
+            };
+
+            await EmitStatusAsync();
+        }
 
         public async Task<Object?> GetStatusAsync()
         {
@@ -52,6 +71,14 @@ namespace OhmamiAgent.SystemControl
             };
         }
 
+        private async Task EmitStatusAsync()
+        {
+            var data = await GetStatusAsync();
+            if (data != null && StatusChanged != null)
+            {
+                try { await StatusChanged.Invoke(data); } catch { }
+            }
+        }
         public async Task PlayAsync() =>
             await CurrentSession?.TryPlayAsync();
 
@@ -63,16 +90,5 @@ namespace OhmamiAgent.SystemControl
 
         public async Task PreviousAsync() =>
             await CurrentSession?.TrySkipPreviousAsync();
-
-        //public class MediaStatus
-        //{
-        //    public string? Title { get; set; }
-        //    public string? Subtitle { get; set; }
-
-        //    public string? Artist { get; set; }
-        //    public string? Album { get; set; }
-        //    public string? PlaybackStatus { get; set; }
-        //    public string? ThumbnailBase64 { get; set; }
-        //}
     }
 }

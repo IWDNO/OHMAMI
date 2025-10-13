@@ -23,6 +23,12 @@ namespace OhmamiAgent.Ws
             this.metricsInterval = configuration.GetValue<int>("MetricsIntervalSeconds", 2);
             this.mediaInterval = configuration.GetValue<int>("MediaIntervalSeconds", 3);
             this.mediaManager = media;
+
+            this.mediaManager.StatusChanged += async payload =>
+            {
+                var message = new { type = "media_update", payload };
+                await BroadcastAsync(message);
+            };
         }
 
         public async Task HandleConnectionAsync(WebSocket ws, CancellationToken ct)
@@ -30,9 +36,16 @@ namespace OhmamiAgent.Ws
             lock (active) { active.Add(ws); }
             logger.LogInformation("WebSocket connected. Total clients: {n}", active.Count);
 
+            // сразу отправляем инфу по медиа
+            var status = await mediaManager.GetStatusAsync();
+            if (status != null)
+            {
+                var payload = new { type = "media_update", payload = status };
+                await SendAsync(ws, payload, ct);
+            }
+
             var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             var senderTask = Task.Run(() => MetricsSenderLoop(ws, linkedCts.Token), linkedCts.Token);
-            var mediaTask = Task.Run(() => MediaSenderLoop(ws, linkedCts.Token), linkedCts.Token);
 
             var buffer = new byte[4096];
             try
@@ -62,7 +75,6 @@ namespace OhmamiAgent.Ws
                 {
                     linkedCts.Cancel();
                     await senderTask;
-                    await mediaTask;
                 }
                 catch { /* ignore */ }
 
@@ -91,28 +103,6 @@ namespace OhmamiAgent.Ws
             catch (Exception ex)
             {
                 logger.LogDebug(ex, "Metrics sender stopped");
-            }
-        }
-
-        private async Task MediaSenderLoop(WebSocket ws, CancellationToken ct)
-        {
-            try
-            {
-                while (!ct.IsCancellationRequested && ws.State == WebSocketState.Open)
-                {
-                    var status = await mediaManager.GetStatusAsync();
-                    if (status != null)
-                    {
-                        var payload = new { type = "media_update", payload = status };
-                        await SendAsync(ws, payload, ct);
-                    }
-                    await Task.Delay(TimeSpan.FromSeconds(mediaInterval), ct);
-                }
-            }
-            catch (OperationCanceledException) { }
-            catch (Exception ex)
-            {
-                logger.LogDebug(ex, "Media sender stopped");
             }
         }
 
