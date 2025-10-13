@@ -1,5 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'agent_discovery.dart';
 
 class ConnectionService extends ChangeNotifier {
@@ -7,68 +11,65 @@ class ConnectionService extends ChangeNotifier {
   factory ConnectionService() => _instance;
   ConnectionService._internal();
 
-  String? _baseUrl;
-  bool _isConnected = false;
-  bool _isSearching = false;
+  String? apiUrl;
+  bool isApiAvailable = false;
+  bool isSearching = false;
+  WebSocketChannel? webSocketChannel;
+  StreamSubscription? webSocketSubscription;
+  bool isWebSocketConnected = false;
 
-  String? get baseUrl => _baseUrl;
-  bool get isConnected => _isConnected;
-  bool get isSearching => _isSearching;
+  final StreamController<String> wsMessages = StreamController<String>.broadcast();
 
-  /// Установить базовый URL агента
-  void setBaseUrl(String url) {
-    _baseUrl = url;
+  void setApiUrl(String url) {
+    apiUrl = url;
     notifyListeners();
   }
 
-  /// Поиск агентов через mDNS
   Future<List<String>> searchAgents() async {
-    _isSearching = true;
+    isSearching = true;
     notifyListeners();
 
     try {
       final agents = await AgentDiscovery.discoverAgents();
       if (agents.isNotEmpty) {
-        _baseUrl = agents.first;
+        setApiUrl(agents.first);
       }
       return agents;
     } finally {
-      _isSearching = false;
+      isSearching = false;
       notifyListeners();
     }
   }
 
-  /// Проверить подключение к агенту
   Future<bool> ping() async {
-    if (_baseUrl == null) return false;
+    if (apiUrl == null) return false;
     
     try {
       final response = await http.get(
-        Uri.parse('$_baseUrl/ping'),
+        Uri.parse('$apiUrl/ping'),
       ).timeout(const Duration(seconds: 3));
       
-      _isConnected = response.statusCode == 200;
+      isApiAvailable = response.statusCode == 200;
       notifyListeners();
-      return _isConnected;
+      return isApiAvailable;
     } catch (e) {
-      _isConnected = false;
+      isApiAvailable = false;
       notifyListeners();
       return false;
     }
   }
-
-  /// Выполнить HTTP запрос к агенту
+  
   Future<http.Response> request(
     String method,
     String endpoint, {
     Map<String, String>? headers,
     Object? body,
   }) async {
-    if (_baseUrl == null) {
+    if (apiUrl == null) {
       throw Exception('Base URL not set');
     }
 
-    final uri = Uri.parse('$_baseUrl$endpoint');
+    final uri = Uri.parse('$apiUrl$endpoint');
     
     switch (method.toUpperCase()) {
       case 'GET':
@@ -84,9 +85,62 @@ class ConnectionService extends ChangeNotifier {
     }
   }
 
-  /// Получить WebSocket URL
   String? getWebSocketUrl() {
-    if (_baseUrl == null) return null;
-    return '${_baseUrl!.replaceFirst('http', 'ws')}/ws';
+    if (apiUrl == null) return null;
+    return '${apiUrl!.replaceFirst('http', 'ws')}/ws';
   }
+  
+  Future<void> connectWs() async {        
+    final wsUrl = getWebSocketUrl();
+    if (wsUrl == null) return;
+
+    try {
+      webSocketChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      isWebSocketConnected = true;
+      notifyListeners();
+
+      webSocketSubscription = webSocketChannel!.stream.listen(
+        (message) {
+          try {
+            try {
+              final data = json.decode(message);
+              print('WebSocket message received: $data');
+              wsMessages.add(message.toString());
+            } catch (_) {
+              print('WebSocket raw message: $message');
+              wsMessages.add(message.toString());
+            }
+          } catch (e) {
+            print('Error parsing WebSocket message: $e');
+          }
+        },
+        onDone: () {
+          print('WebSocket disconnected');
+          isWebSocketConnected = false;
+          notifyListeners();
+          //TODO: add reconnect logic
+        },
+        onError: (error) {
+          print('WebSocket error: $error');
+          isWebSocketConnected = false;
+          notifyListeners();
+          //TODO: add reconnect logic
+        },
+      );
+      notifyListeners();
+    } catch (error) {
+      isWebSocketConnected = false;
+      notifyListeners();
+    }
+  }
+
+    Future<void> disconnectWebSocket() async {
+      webSocketSubscription?.cancel();
+      webSocketSubscription = null;
+      
+      await webSocketChannel?.sink.close();
+      webSocketChannel = null;
+      isWebSocketConnected = false;
+      notifyListeners();
+    }
 }

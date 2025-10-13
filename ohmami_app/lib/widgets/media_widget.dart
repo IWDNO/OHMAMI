@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import '../services/connection_service.dart';
+
 
 class MediaWidget extends StatefulWidget {
   const MediaWidget({super.key});
@@ -11,100 +15,78 @@ class MediaWidget extends StatefulWidget {
 
 class _MediaWidgetState extends State<MediaWidget> {
   final ConnectionService _connectionService = ConnectionService();
+  StreamSubscription? _wsSubscription;
 
   Map<String, dynamic>? _mediaInfo;
-  bool _isLoading = false;
-  String? _error;
 
   @override
   void initState() {
     super.initState();
     _loadMediaInfo();
+
+    _wsSubscription = _connectionService.wsMessages.stream.listen((message) {
+      if (mounted) {
+        try {
+          final decoded = json.decode(message);
+          if (decoded is Map && decoded['type'] == 'media_update') {
+            setState(() {
+              _mediaInfo = decoded['payload'];
+            });
+          }
+        } catch (e) {
+          print('Error parsing WebSocket message: $e');
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _wsSubscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadMediaInfo() async {
-    if (_connectionService.baseUrl == null) {
-      setState(() {
-        _error = 'No agent connected';
-      });
+    if (_connectionService.apiUrl == null) {
       return;
     }
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
 
     try {
       final response = await _connectionService.request('GET', '/media/info');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        setState(() {
-          _mediaInfo = data['data'];
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'Failed to load media info: ${response.statusCode}';
-          _isLoading = false;
-        });
-      }
+        if (mounted) {
+          setState(() {
+            _mediaInfo = data['data'];
+          });
+        }
+      } 
     } catch (e) {
-      setState(() {
-        _error = 'Error: $e';
-        _isLoading = false;
-      });
+      print('Error loading media info: $e');
     }
   }
 
   Future<void> _play() async {
-    await _sendMediaCommand('/media/play', 'Playback started');
+    await _request('/media/play');
   }
 
   Future<void> _pause() async {
-    await _sendMediaCommand('/media/pause', 'Playback paused');
+    await _request('/media/pause');
   }
 
   Future<void> _next() async {
-    await _sendMediaCommand('/media/next', 'Skipped to next track');
+    await _request('/media/next');
   }
 
   Future<void> _previous() async {
-    await _sendMediaCommand('/media/previous', 'Skipped to previous track');
+    await _request('/media/previous');
   }
 
-  Future<void> _sendMediaCommand(String endpoint, String successMessage) async {
-    if (_connectionService.baseUrl == null) {
-      setState(() {
-        _error = 'No agent connected';
-      });
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      final response = await _connectionService.request('POST', endpoint);
-
-      if (response.statusCode == 200) {
-        await _loadMediaInfo(); // refresh
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(successMessage)),
-        );
-      } else {
-        setState(() {
-          _error = 'Failed to execute command: ${response.statusCode}';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _error = 'Error: $e';
-        _isLoading = false;
-      });
+  Future<void> _request(String endpoint) async {
+    final response = await _connectionService.request('POST', endpoint);
+    if (response.statusCode == 200) {
+      await Future.delayed(const Duration(milliseconds: 100)); //FIXME иначе не успевает обновиться
+      await _loadMediaInfo();
     }
   }
 
@@ -121,223 +103,160 @@ class _MediaWidgetState extends State<MediaWidget> {
   }
 
   String get _status {
-    return _mediaInfo?['status'] ?? 'Unknown';
+    return _mediaInfo?['playbackStatus'] ?? _mediaInfo?['status'] ?? 'Unknown';
   }
 
   bool get _isPlaying {
-    return _mediaInfo?['status'] == 'playing';
+    final status = _status.toLowerCase();
+    return status.contains('playing');
+  }
+
+  String? get _thumbnailBase64 {
+    return _mediaInfo?['thumbnailBase64'];
+  }
+
+  Widget _buildThumbnail() {
+    final thumbnail = _thumbnailBase64;
+    if (thumbnail != null && thumbnail.isNotEmpty) {
+      try {
+        final bytes = base64.decode(thumbnail);
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: Image.memory(
+            Uint8List.fromList(bytes),
+            width: 64,
+            height: 64,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return _buildDefaultIcon();
+            },
+          ),
+        );
+      } catch (e) {
+        return _buildDefaultIcon();
+      }
+    }
+    return _buildDefaultIcon();
+  }
+
+  Widget _buildDefaultIcon() {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        Icons.music_note,
+        color: _isPlaying ? Colors.green : Colors.grey,
+        size: 32,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Media Control'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Обновить',
-            onPressed: _isLoading ? null : _loadMediaInfo,
-          ),
-        ],
-      ),
-      body: Padding(
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Media Info Card
-            Card(
-              elevation: 6,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.music_note,
-                          color: _isPlaying ? Colors.green : Colors.grey,
-                          size: 32,
+            // Media Info with thumbnail
+            Row(
+              children: [
+                // Thumbnail
+                _buildThumbnail(),
+                const SizedBox(width: 16),
+                
+                // Media info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _title,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _title,
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                _artist,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                _album,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[500],
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _artist,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey[600],
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: _isPlaying ? Colors.green : Colors.grey,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            _status.toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        _album,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[500],
                         ),
-                      ],
-                    ),
-                  ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                
+                // Refresh button
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: _loadMediaInfo,
+                  tooltip: 'Обновить',
+                ),
+              ],
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // Control Buttons
-            Card(
-              elevation: 6,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Media Controls',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    
-                    // Main control buttons
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        // Previous button
-                        FloatingActionButton(
-                          heroTag: 'previous',
-                          onPressed: _isLoading ? null : _previous,
-                          backgroundColor: Colors.blue,
-                          child: const Icon(Icons.skip_previous, color: Colors.white),
-                        ),
-                        
-                        // Play/Pause button
-                        FloatingActionButton.large(
-                          heroTag: 'play_pause',
-                          onPressed: _isLoading ? null : (_isPlaying ? _pause : _play),
-                          backgroundColor: _isPlaying ? Colors.orange : Colors.green,
-                          child: Icon(
-                            _isPlaying ? Icons.pause : Icons.play_arrow,
-                            color: Colors.white,
-                            size: 32,
-                          ),
-                        ),
-                        
-                        // Next button
-                        FloatingActionButton(
-                          heroTag: 'next',
-                          onPressed: _isLoading ? null : _next,
-                          backgroundColor: Colors.blue,
-                          child: const Icon(Icons.skip_next, color: Colors.white),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Error display
-                    if (_error != null)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.red[200]!),
-                        ),
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(color: Colors.red),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-
-                    if (_isLoading)
-                      const Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                  ],
+            // Control buttons
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Previous button
+                IconButton(
+                  onPressed: _previous,
+                  icon: const Icon(Icons.skip_previous),
+                  iconSize: 32,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.blue[100],
+                    foregroundColor: Colors.blue[700],
+                  ),
                 ),
-              ),
-            ),
-
-            const Spacer(),
-
-            // Quick actions
-            Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _play,
-                      icon: const Icon(Icons.play_arrow),
-                      label: const Text('Play'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _pause,
-                      icon: const Icon(Icons.pause),
-                      label: const Text('Pause'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.orange,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
+                
+                // Play/Pause button
+                IconButton(
+                  onPressed: (_isPlaying ? _pause : _play),
+                  icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
+                  iconSize: 40,
+                  style: IconButton.styleFrom(
+                    backgroundColor: _isPlaying ? Colors.orange[100] : Colors.green[100],
+                    foregroundColor: _isPlaying ? Colors.orange[700] : Colors.green[700],
+                  ),
                 ),
-              ),
+                
+                // Next button
+                IconButton(
+                  onPressed: _next,
+                  icon: const Icon(Icons.skip_next),
+                  iconSize: 32,
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.blue[100],
+                    foregroundColor: Colors.blue[700],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

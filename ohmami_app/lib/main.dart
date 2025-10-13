@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ohmami_app/widgets/dummy_widget.dart';
 
 import './widgets/connection_widget.dart';
 import './widgets/volume_widget.dart';
 import './widgets/media_widget.dart';
+import './screens/control_screen.dart';
+
 
 void main() => runApp(App());
 
@@ -19,8 +22,8 @@ class _AppState extends State<App> {
 
   final List<Widget> _pages = const [
     ConnectionWidget(),
-    VolumeWidget(),
-    MediaWidget(),
+    ControlScreen(),
+    DummyWidget(),
   ];
 
   @override
@@ -45,12 +48,12 @@ class _AppState extends State<App> {
               label: 'Connection',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.volume_up),
-              label: 'Volume',
-            ),
-            BottomNavigationBarItem(
               icon: Icon(Icons.play_circle_outline),
               label: 'Media',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.document_scanner),
+              label: 'None',
             ),
           ],
         ),

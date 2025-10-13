@@ -44,11 +44,11 @@ namespace OhmamiAgent.SystemControl
             return new
             {
                 timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
-                Title = mediaProps.Title,
-                Artist = mediaProps.Artist,
-                Album = mediaProps.AlbumTitle,
-                PlaybackStatus = playbackInfo.PlaybackStatus.ToString(),
-                ThumbnailBase64 = thumbnailBase64
+                title = mediaProps.Title,
+                artist = mediaProps.Artist,
+                album = mediaProps.AlbumTitle,
+                playbackStatus = playbackInfo.PlaybackStatus.ToString(),
+                thumbnailBase64 = thumbnailBase64
             };
         }
 
