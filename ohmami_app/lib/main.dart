@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:ohmami_app/screens/system_screen.dart';
 import 'package:ohmami_app/widgets/dummy_widget.dart';
-import 'package:ohmami_app/widgets/metrics_widget.dart';
+
 
 import './widgets/connection_widget.dart';
-import './widgets/volume_widget.dart';
-import './widgets/media_widget.dart';
 import './screens/control_screen.dart';
 
 
@@ -26,7 +25,7 @@ class _AppState extends State<App> {
     ConnectionWidget(),
     ControlScreen(),
     // DummyWidget(),
-   MetricsWidget(),
+    SystemScreen(),
   ];
 
   @override
