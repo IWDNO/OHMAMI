@@ -8,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<AppConfig>(builder.Configuration);
 builder.Services.AddControllers();
 
-
+builder.Services.AddSingleton<ApplicationManager>();
 builder.Services.AddSingleton<AudioManager>();
 builder.Services.AddSingleton<MediaManager>();
 builder.Services.AddSingleton<OhmamiAgent.Ws.WebSocketManager>();
