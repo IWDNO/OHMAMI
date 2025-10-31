@@ -50,7 +50,7 @@ namespace OhmamiAgent.SystemControl
                         IsDirectory = true,
                         IsDrive = true,
                         Size = null,
-                        ModifiedUtc = DateTime.MinValue
+                        ModifiedUtc = DateTime.MinValue.ToString()
                     })
                     .ToArray();
             }
@@ -69,7 +69,7 @@ namespace OhmamiAgent.SystemControl
                         Path = fi.FullName,
                         IsDirectory = false,
                         Size = fi.Length,
-                        ModifiedUtc = fi.LastWriteTimeUtc
+                        ModifiedUtc = fi.LastWriteTimeUtc.ToString("dd.MM.yyyy HH:mm"),
                     }
                 };
             }
@@ -84,7 +84,7 @@ namespace OhmamiAgent.SystemControl
                     Path = d,
                     IsDirectory = true,
                     Size = null,
-                    ModifiedUtc = Directory.GetLastWriteTimeUtc(d)
+                    ModifiedUtc = Directory.GetLastWriteTimeUtc(d).ToString("dd.MM.yyyy HH:mm")
                 });
             var files = Directory.EnumerateFiles(full)
                 .Select(f => new Entry
@@ -93,7 +93,7 @@ namespace OhmamiAgent.SystemControl
                     Path = f,
                     IsDirectory = false,
                     Size = new FileInfo(f).Length,
-                    ModifiedUtc = File.GetLastWriteTimeUtc(f)
+                    ModifiedUtc = File.GetLastWriteTimeUtc(f).ToString("dd.MM.yyyy HH:mm")
                 });
             return dirs.Concat(files)
                 .OrderBy(e => e.IsDirectory ? 0 : 1)
@@ -221,7 +221,7 @@ namespace OhmamiAgent.SystemControl
             public bool IsDirectory { get; set; }
             public bool IsDrive { get; set; }
             public long? Size { get; set; }
-            public DateTime ModifiedUtc { get; set; }
+            public string? ModifiedUtc { get; set; }
         }
 
         public class DriveInfoEntry

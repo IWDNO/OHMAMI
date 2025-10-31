@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/media_widget.dart';
 import '../widgets/volume_widget.dart';
+import '../widgets/file_browser_widget.dart';
 
 class ControlScreen extends StatelessWidget {
   const ControlScreen({super.key});
@@ -17,12 +18,18 @@ class ControlScreen extends StatelessWidget {
         child: Column(
           children: [
             // Media Control Widget
-            MediaWidget(),
+            // MediaWidget(),
             
+            SizedBox(height: 16),
+
+            // VolumeWidget(),
+
             SizedBox(height: 16),
             
             // Volume Control Widget
-            VolumeWidget(),
+            Expanded(
+              child: FileBrowserWidget(),
+            ),
           ],
         ),
       ),
