@@ -9,6 +9,7 @@ builder.Services.Configure<AppConfig>(builder.Configuration);
 builder.Services.AddControllers();
 
 
+builder.Services.AddSingleton<FileSystemManager>();
 builder.Services.AddSingleton<AudioManager>();
 builder.Services.AddSingleton<MediaManager>();
 builder.Services.AddSingleton<OhmamiAgent.Ws.WebSocketManager>();

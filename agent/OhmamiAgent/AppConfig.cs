@@ -12,5 +12,8 @@ namespace OhmamiAgent
         public int MediaIntervalSeconds { get; set; } = 3;
         public string MdnsServiceType { get; set; } = "_ohmami._tcp";
         public string MdnsServiceNameTemplate { get; set; } = "Ohmami-{0}._ohmami._tcp.local.";
+
+        public string[] BlacklistPaths { get; set; } = Array.Empty<string>();
+        public bool BlacklistAppliesToRead { get; set; } = false;
     }
 }
