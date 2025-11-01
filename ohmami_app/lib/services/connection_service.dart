@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -83,6 +85,41 @@ class ConnectionService extends ChangeNotifier {
       default:
         throw Exception('Unsupported HTTP method: $method');
     }
+  }
+
+  Future<http.Response> uploadFile(
+    String endpoint,
+    File file, {
+    Map<String, String>? fields,
+  }) async {
+    if (apiUrl == null) {
+      throw Exception('Base URL not set');
+    }
+
+    final uri = Uri.parse('$apiUrl$endpoint');
+    
+    final request = http.MultipartRequest('POST', uri);
+    
+    // Добавляем файл
+    final fileStream = http.ByteStream(file.openRead());
+    final fileLength = await file.length();
+    final multipartFile = http.MultipartFile(
+      'file',
+      fileStream,
+      fileLength,
+      filename: file.path.split('/').last.split('\\').last,
+    );
+    request.files.add(multipartFile);
+    
+    // Добавляем дополнительные поля, если есть
+    if (fields != null) {
+      request.fields.addAll(fields);
+    }
+    
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+    
+    return response;
   }
 
   String? getWebSocketUrl() {

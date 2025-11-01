@@ -4,8 +4,9 @@ import 'package:flutter/material.dart';
 import '../services/connection_service.dart';
 
 import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:file_picker/file_picker.dart';
+
 
 
 class FileBrowserWidget extends StatefulWidget {
@@ -62,7 +63,6 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     }
   }
 
-  // Переход вниз: в диск/директорию
   // Переход вниз: в диск/директорию — или скачивание файла
   Future<void> _enter(Map<String, dynamic> item) async {
     final bool isDir = item['isDirectory'] == true;
@@ -99,8 +99,7 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
 
     final bytes = resp.bodyBytes;
 
-    final dir = await getApplicationDocumentsDirectory();
-    final savePath = '${dir.path}/$filename';
+    final savePath = '${'/storage/emulated/0/Download'}/$filename'; //FIXME: gotta use path_provider idk how
 
     final file = File(savePath);
     await file.writeAsBytes(bytes);
@@ -111,20 +110,13 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
       SnackBar(content: Text('Сохранено: $savePath')),
     );
 
-    // --- Новый рекомендуемый способ шаринга через SharePlus.instance.share ---
-    // Опционально можно задать позицию происхождения (для планшетов/поповеров)
     final shareParams = ShareParams(
       text: 'Вот файл: $filename',
       files: [XFile(savePath, name: filename)],
-      // sharePositionOrigin: box != null ? (box.localToGlobal(Offset.zero) & box.size) : null,
     );
 
-    final ShareResult result = await SharePlus.instance.share(shareParams);
+    await SharePlus.instance.share(shareParams);
 
-    // Можно показать результат (необязательно)
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Share result: ${result.status}')),
-    );
   } catch (e) {
     setState(() {
       error = e.toString();
@@ -135,6 +127,71 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     );
   }
 }
+
+  Future<void> _uploadFile() async {
+    try {
+      // Выбор файла
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return; // Пользователь отменил выбор
+      }
+
+      final platformFile = result.files.first;
+      if (platformFile.path == null) {
+        throw Exception('Не удалось получить путь к файлу');
+      }
+
+      final file = File(platformFile.path!);
+      final fileName = platformFile.name;
+
+      // Определяем путь назначения (текущая директория или корень)
+      final dest = currentPath ?? '';
+
+      // Показываем индикатор загрузки
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Загрузка файла...')),
+      );
+
+      // Загружаем файл
+      final endpoint = '/fs/upload?dest=${Uri.encodeQueryComponent(dest)}';
+      final resp = await _conn.uploadFile(endpoint, file);
+
+      if (resp.statusCode != 200) {
+        throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] != 'ok') {
+        throw Exception('Ошибка: ${body['message'] ?? 'Unknown error'}');
+      }
+
+      // Обновляем список файлов
+      await _loadListing(currentPath);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Файл загружен: $fileName'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        error = e.toString();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при загрузке: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
 
 
@@ -287,6 +344,11 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
               icon: const Icon(Icons.arrow_upward),
             ),
             Expanded(child: _buildBreadcrumbs()),
+            IconButton(
+              tooltip: 'Загрузить файл',
+              onPressed: currentPath == null ? null : _uploadFile,
+              icon: const Icon(Icons.upload_file),
+            ),
             IconButton(
               tooltip: 'Обновить',
               onPressed: () => _loadListing(currentPath),

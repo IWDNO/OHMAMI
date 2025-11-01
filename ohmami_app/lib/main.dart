@@ -26,6 +26,7 @@ class _AppState extends State<App> {
     ControlScreen(),
     // DummyWidget(),
     SystemScreen(),
+    ControlScreen2(),
   ];
 
   @override
@@ -44,6 +45,8 @@ class _AppState extends State<App> {
               _currentIndex = index;
             });
           },
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.grey,
           items: const [
             BottomNavigationBarItem(
               icon: Icon(Icons.wifi_tethering), // Более подходящая иконка для подключения
@@ -57,6 +60,10 @@ class _AppState extends State<App> {
             //   icon: Icon(Icons.document_scanner),
             //   label: 'None',
             // ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.manage_accounts_sharp),
+              label: 'metric',
+            ),
             BottomNavigationBarItem(
               icon: Icon(Icons.manage_accounts_sharp),
               label: 'metric',
