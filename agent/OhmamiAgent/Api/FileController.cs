@@ -4,6 +4,7 @@ using OhmamiAgent.SystemControl;
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace OhmamiAgent.Api
 {
@@ -120,6 +121,20 @@ namespace OhmamiAgent.Api
             {
                 _fs.DeleteDirectory(path, recursive);
                 return Ok(new { status = "ok", message = "Directory deleted" });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "error", message = ex.Message });
+            }
+        }
+
+        [HttpGet("fs/special-folders")]
+        public IActionResult GetSpecialFolders()
+        {
+            try
+            {
+                var folders = _fs.GetSpecialFolders();
+                return Ok(new { status = "ok", data = folders });
             }
             catch (Exception ex)
             {

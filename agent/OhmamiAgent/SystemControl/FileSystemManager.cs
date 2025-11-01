@@ -162,6 +162,49 @@ namespace OhmamiAgent.SystemControl
             return NormalizePathRequired(finalPath);
         }
 
+        public Dictionary<string, string> GetSpecialFolders()
+        {
+            var folders = new Dictionary<string, string>();
+            
+            var desktop = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
+            if (!string.IsNullOrEmpty(desktop))
+                folders["desktop"] = desktop;
+
+            var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (!string.IsNullOrEmpty(documents))
+                folders["documents"] = documents;
+
+            var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            if (!string.IsNullOrEmpty(pictures))
+                folders["pictures"] = pictures;
+
+            var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrEmpty(userProfile))
+            {
+                var downloads = System.IO.Path.Combine(userProfile, "Downloads");
+                if (Directory.Exists(downloads))
+                    folders["downloads"] = downloads;
+            }
+
+            var music = Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
+            if (!string.IsNullOrEmpty(music) && Directory.Exists(music))
+                folders["music"] = music;
+
+            var videos = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+            if (!string.IsNullOrEmpty(videos) && Directory.Exists(videos))
+                folders["videos"] = videos;
+
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (!string.IsNullOrEmpty(home))
+                folders["home"] = home;
+
+            var recent = Environment.GetFolderPath(Environment.SpecialFolder.Recent);
+            if (!string.IsNullOrEmpty(recent) && Directory.Exists(recent))
+                folders["recent"] = recent;
+
+            return folders;
+        }
+
         private void DenyIfBlacklisted(string fullPath)
         {
             if (IsBlacklisted(fullPath))
