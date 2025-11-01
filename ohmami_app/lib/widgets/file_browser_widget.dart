@@ -194,6 +194,103 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
   }
 
 
+  Future<void> _createDirectory() async {
+    // Проверяем, что мы не на этапе выбора тома
+    if (currentPath == null) return;
+
+    // Показываем диалог для ввода имени директории
+    final TextEditingController nameController = TextEditingController();
+    
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Создать папку'),
+          content: TextField(
+            controller: nameController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Введите имя папки',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () {
+                if (nameController.text.trim().isNotEmpty) {
+                  Navigator.of(context).pop(true);
+                }
+              },
+              child: const Text('Создать'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != true || nameController.text.trim().isEmpty) {
+      return; // Пользователь отменил или не ввел имя
+    }
+
+    final dirName = nameController.text.trim();
+
+    setState(() {
+      error = null;
+    });
+
+    try {
+      // Формируем путь новой директории
+      String newDirPath;
+      if (currentPath!.isEmpty) {
+        newDirPath = dirName;
+      } else {
+        // Для Windows используем обратный слеш
+        final separator = currentPath!.contains('\\') ? '\\' : '/';
+        newDirPath = '$currentPath$separator$dirName';
+      }
+
+      // Отправляем запрос на создание директории
+      final endpoint = '/fs/mkdir?path=${Uri.encodeQueryComponent(newDirPath)}';
+      final resp = await _conn.request('POST', endpoint);
+
+      if (resp.statusCode != 200) {
+        throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] != 'ok') {
+        throw Exception('Ошибка: ${body['message'] ?? 'Unknown error'}');
+      }
+
+      // Обновляем список файлов
+      await _loadListing(currentPath);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Папка создана: $dirName'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        error = e.toString();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при создании папки: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+
 
   // Вверх на уровень (или к корню)
   Future<void> _goUp() async {
@@ -335,7 +432,10 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Панель управления
+        Row(children: [
+          Expanded(child: _buildBreadcrumbs()),
+        ],),
+        Divider(),
         Row(
           children: [
             IconButton(
@@ -343,11 +443,16 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
               onPressed: pathStack.isEmpty ? null : _goUp,
               icon: const Icon(Icons.arrow_upward),
             ),
-            Expanded(child: _buildBreadcrumbs()),
+            Expanded(child: SizedBox()),
             IconButton(
               tooltip: 'Загрузить файл',
               onPressed: currentPath == null ? null : _uploadFile,
               icon: const Icon(Icons.upload_file),
+            ),
+            IconButton(
+              tooltip: 'Создать папку',
+              onPressed: currentPath == null ? null : _createDirectory,
+              icon: const Icon(Icons.create_new_folder),
             ),
             IconButton(
               tooltip: 'Обновить',
