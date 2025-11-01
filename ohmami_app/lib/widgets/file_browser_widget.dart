@@ -290,7 +290,100 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     }
   }
 
+  Future<void> _deleteItem(Map<String, dynamic> item) async {
+    final bool isDir = item['isDirectory'] == true;
+    final bool isDrive = item['isDrive'] == true;
+    final String name = (item['name'] as String?) ?? 'file';
+    final String itemPath = (item['path'] as String?) ?? '';
 
+    // Нельзя удалять диски
+    if (isDrive) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Нельзя удалить диск'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Показываем диалог подтверждения
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(isDir ? 'Удалить папку?' : 'Удалить файл?'),
+          content: Text('Вы уверены, что хотите удалить "${name}"?${isDir ? '\n\nВнимание: это действие нельзя отменить.' : ''}'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Удалить'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return; // Пользователь отменил
+    }
+
+    setState(() {
+      error = null;
+    });
+
+    try {
+      String endpoint;
+      if (isDir) {
+        // Удаление папки с рекурсивным удалением
+        endpoint = '/fs/rmdir?path=${Uri.encodeQueryComponent(itemPath)}&recursive=true';
+      } else {
+        // Удаление файла
+        endpoint = '/fs/rm?path=${Uri.encodeQueryComponent(itemPath)}';
+      }
+
+      final resp = await _conn.request('DELETE', endpoint);
+
+      if (resp.statusCode != 200) {
+        throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] != 'ok') {
+        throw Exception('Ошибка: ${body['message'] ?? 'Unknown error'}');
+      }
+
+      // Обновляем список файлов
+      await _loadListing(currentPath);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${isDir ? 'Папка' : 'Файл'} удален: $name'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        error = e.toString();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при удалении: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   // Вверх на уровень (или к корню)
   Future<void> _goUp() async {
@@ -425,6 +518,7 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
       ),
       trailing: isDir || isDrive ? const Icon(Icons.chevron_right) : null,
       onTap: () => _enter(item),
+      onLongPress: () => _deleteItem(item),
     );
   }
 
