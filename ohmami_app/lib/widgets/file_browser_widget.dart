@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import '../services/connection_service.dart';
 
 import 'dart:io';
-import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:open_file/open_file.dart';
 
 
 
@@ -23,6 +23,7 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
 
   String? error;
   List<Map<String, dynamic>> entries = <Map<String, dynamic>>[];
+  Map<String, String> specialFolders = {};
 
   String? get currentPath => pathStack.isEmpty ? null : pathStack.last;
 
@@ -30,6 +31,35 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
   void initState() {
     super.initState();
     _loadListing(null);
+    _loadSpecialFolders();
+  }
+
+  Future<void> _loadSpecialFolders() async {
+    try {
+      final resp = await _conn.request('GET', '/fs/special-folders');
+      if (resp.statusCode != 200) {
+        return;
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] == 'ok' && body['data'] != null) {
+        setState(() {
+          specialFolders = Map<String, String>.from(body['data'] as Map);
+        });
+      }
+    } catch (e) {
+      // Игнорируем ошибки загрузки специальных папок
+      print('Error loading special folders: $e');
+    }
+  }
+
+  Future<void> _navigateToSpecialFolder(String folderPath) async {
+    if (folderPath.isEmpty) return;
+
+    // Очищаем стек и переходим к папке
+    pathStack.clear();
+    pathStack.add(folderPath);
+    await _loadListing(folderPath);
   }
 
   Future<void> _loadListing(String? path) async {
@@ -110,12 +140,8 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
       SnackBar(content: Text('Сохранено: $savePath')),
     );
 
-    final shareParams = ShareParams(
-      text: 'Вот файл: $filename',
-      files: [XFile(savePath, name: filename)],
-    );
-
-    await SharePlus.instance.share(shareParams);
+    // Open the file directly instead of showing share dialog
+    await OpenFile.open(savePath);
 
   } catch (e) {
     setState(() {
@@ -392,28 +418,35 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     await _loadListing(currentPath);
   }
 
-  // Переход по крошке (на произвольный уровень)
   Future<void> _jumpToIndex(int indexInclusive) async {
     // indexInclusive: индекс в визуальном списке крошек
     // 0 => "Этот компьютер" (null), 1 => 'C:\\', ...
-    final target = _crumbs()[indexInclusive].path;
-    pathStack
-      ..clear()
-      ..addAll(_crumbs()
-          .where((c) => c.path != null)
-          .map((c) => c.path))
-      ..retainWhere((p) {
-        // оставить до требуемого
-        if (target == null) return false;
-        return true;
-      });
-
-    // Правильнее — просто пересобрать стек по target:
-    pathStack
-      .clear();
-    if (target != null) {
-      pathStack.add(target);
+    final crumbs = _crumbs();
+    
+    if (indexInclusive < 0 || indexInclusive >= crumbs.length) {
+      return;
     }
+
+    final target = crumbs[indexInclusive].path;
+
+    // Очищаем стек
+    pathStack.clear();
+
+    // Если кликнули на корень (index 0), оставляем стек пустым
+    if (target == null) {
+      await _loadListing(null);
+      return;
+    }
+
+    // Восстанавливаем путь: берём все крошки до индекса включительно (но пропускаем корень)
+    // и добавляем их пути в стек
+    for (int i = 1; i <= indexInclusive; i++) {
+      final crumbPath = crumbs[i].path;
+      if (crumbPath != null) {
+        pathStack.add(crumbPath);
+      }
+    }
+
     await _loadListing(target);
   }
 
@@ -522,6 +555,88 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     );
   }
 
+  Widget _buildSpecialFolders() {
+    _loadSpecialFolders();
+    if (specialFolders.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // Маппинг названий папок на русские и иконки
+    final folderConfig = {
+      'desktop': (icon: Icons.desktop_windows, label: 'Рабочий стол'),
+      'documents': (icon: Icons.description, label: 'Документы'),
+      'pictures': (icon: Icons.image, label: 'Изображения'),
+      'downloads': (icon: Icons.download, label: 'Загрузки'),
+      'music': (icon: Icons.music_note, label: 'Музыка'),
+      'videos': (icon: Icons.video_library, label: 'Видео'),
+      'home': (icon: Icons.home, label: 'Домашняя папка'),
+      'recent': (icon: Icons.access_time, label: 'Недавние'),
+    };
+
+    return Container(
+      height: 90,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: specialFolders.entries.map((entry) {
+          final config = folderConfig[entry.key];
+          if (config == null) return const SizedBox.shrink();
+
+          final isActive = currentPath == entry.value;
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: InkWell(
+              onTap: () => _navigateToSpecialFolder(entry.value),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                width: 80,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isActive
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.outline.withOpacity(0.3),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      config.icon,
+                      size: 24,
+                      color: isActive
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      config.label,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: isActive
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurface,
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -530,6 +645,7 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
           Expanded(child: _buildBreadcrumbs()),
         ],),
         Divider(),
+        _buildSpecialFolders(),
         Row(
           children: [
             IconButton(
