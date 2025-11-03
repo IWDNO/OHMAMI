@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'services/connection_service.dart';
 import 'package:ohmami_app/screens/system_screen.dart';
 import 'package:ohmami_app/widgets/dummy_widget.dart';
 
@@ -18,7 +19,7 @@ class App extends StatefulWidget {
   State<App> createState() => _AppState();
 }
 
-class _AppState extends State<App> {
+class _AppState extends State<App> with WidgetsBindingObserver {
   int _currentIndex = 0;
 
   final List<Widget> _pages = const [
@@ -28,6 +29,25 @@ class _AppState extends State<App> {
     SystemScreen(),
     ControlScreen2(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ConnectionService().ensureConnected();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +69,7 @@ class _AppState extends State<App> {
           unselectedItemColor: Colors.grey,
           items: const [
             BottomNavigationBarItem(
-              icon: Icon(Icons.wifi_tethering), // Более подходящая иконка для подключения
+              icon: Icon(Icons.wifi_tethering),
               label: 'Connection',
             ),
             BottomNavigationBarItem(

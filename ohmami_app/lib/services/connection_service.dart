@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/io.dart';
 import 'agent_discovery.dart';
 
 class ConnectionService extends ChangeNotifier {
@@ -19,6 +20,9 @@ class ConnectionService extends ChangeNotifier {
   WebSocketChannel? webSocketChannel;
   StreamSubscription? webSocketSubscription;
   bool isWebSocketConnected = false;
+  bool _shouldKeepConnected = false;
+  int _reconnectAttempts = 0;
+  Timer? _reconnectTimer;
 
   final StreamController<String> wsMessages = StreamController<String>.broadcast();
 
@@ -132,8 +136,14 @@ class ConnectionService extends ChangeNotifier {
     if (wsUrl == null) return;
 
     try {
-      webSocketChannel = WebSocketChannel.connect(Uri.parse(wsUrl));
+      webSocketChannel = IOWebSocketChannel.connect(
+        Uri.parse(wsUrl),
+        pingInterval: const Duration(seconds: 15),
+      );
       isWebSocketConnected = true;
+      _shouldKeepConnected = true;
+      _clearReconnectTimer();
+      _reconnectAttempts = 0;
       notifyListeners();
 
       webSocketSubscription = webSocketChannel!.stream.listen(
@@ -155,23 +165,26 @@ class ConnectionService extends ChangeNotifier {
           print('WebSocket disconnected');
           isWebSocketConnected = false;
           notifyListeners();
-          //TODO: add reconnect logic
+          _scheduleReconnect();
         },
         onError: (error) {
           print('WebSocket error: $error');
           isWebSocketConnected = false;
           notifyListeners();
-          //TODO: add reconnect logic
+          _scheduleReconnect();
         },
       );
       notifyListeners();
     } catch (error) {
       isWebSocketConnected = false;
       notifyListeners();
+      _scheduleReconnect();
     }
   }
 
     Future<void> disconnectWebSocket() async {
+      _shouldKeepConnected = false;
+      _clearReconnectTimer();
       webSocketSubscription?.cancel();
       webSocketSubscription = null;
       
@@ -179,5 +192,33 @@ class ConnectionService extends ChangeNotifier {
       webSocketChannel = null;
       isWebSocketConnected = false;
       notifyListeners();
+    }
+
+    void ensureConnected() {
+      _shouldKeepConnected = true;
+      if (!isWebSocketConnected) {
+        connectWs();
+      }
+    }
+
+    void _scheduleReconnect() {
+      if (!_shouldKeepConnected) return;
+      if (_reconnectTimer != null) return;
+
+      // Exponential backoff with cap (1s, 2s, 5s, 10s, 20s, 30s)
+      final delays = <int>[1, 2, 5, 10, 20, 30];
+      final seconds = delays[(_reconnectAttempts).clamp(0, delays.length - 1)];
+      _reconnectAttempts = (_reconnectAttempts + 1).clamp(0, 1000000);
+      _reconnectTimer = Timer(Duration(seconds: seconds), () {
+        _reconnectTimer = null;
+        if (_shouldKeepConnected && !isWebSocketConnected) {
+          connectWs();
+        }
+      });
+    }
+
+    void _clearReconnectTimer() {
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
     }
 }
