@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 
-namespace OhmamiAgent.SystemControl
+namespace OhmamiAgent.SystemControl.Security
 {
     public class ProcessBlockerHostedService : IHostedService, IDisposable
     {
@@ -27,12 +27,12 @@ namespace OhmamiAgent.SystemControl
                 _watcher = new ManagementEventWatcher(query);
                 _watcher.EventArrived += OnProcessStarted;
                 _watcher.Start();
-                System.Console.WriteLine("ProcessBlockerHostedService is runnig");
+                Console.WriteLine("ProcessBlockerHostedService is runnig");
             }
             catch (Exception ex)
             {
 
-                System.Console.WriteLine($"ProcessBlockerHostedService failed: {ex}");
+                Console.WriteLine($"ProcessBlockerHostedService failed: {ex}");
             }
             return Task.CompletedTask;
         }
@@ -68,7 +68,7 @@ namespace OhmamiAgent.SystemControl
                         {
                             using var p = Process.GetProcessById(pid);
                             p.Kill(true);
-                            System.Console.WriteLine($"Process {pid} killed by ProcessBlockerHostedService: {norm}");
+                            Console.WriteLine($"Process {pid} killed by ProcessBlockerHostedService: {norm}");
                         }
                         catch { }
                         break;

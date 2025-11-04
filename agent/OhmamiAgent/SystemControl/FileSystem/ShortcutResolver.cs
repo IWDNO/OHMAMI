@@ -3,11 +3,11 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace OhmamiAgent.SystemControl
+namespace OhmamiAgent.SystemControl.FileSystem
 {
-    public class ShortcutResolver
+    public static class ShortcutResolver
     {
-        public string ResolveTargetPath(string shortcutPath)
+        public static string ResolveTargetPath(string shortcutPath)
         {
             if (string.IsNullOrWhiteSpace(shortcutPath))
                 throw new ArgumentException("Path is required.", nameof(shortcutPath));

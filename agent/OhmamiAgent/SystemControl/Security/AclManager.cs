@@ -2,34 +2,23 @@ using System;
 using System.IO;
 using System.Security.AccessControl;
 using System.Security.Principal;
+using OhmamiAgent.SystemControl.FileSystem;
 
-namespace OhmamiAgent.SystemControl
+namespace OhmamiAgent.SystemControl.Security
 {
-    public class AclManager
+    public static class AclManager
     {
-        private readonly SecurityIdentifier _sid;
-
-        public AclManager()
+        private static SecurityIdentifier GetCurrentUserSid()
         {
-            _sid = WindowsIdentity.GetCurrent().User!;
+            return WindowsIdentity.GetCurrent().User!;
         }
 
-        public string Normalize(string path)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-                throw new ArgumentException("Path is required.", nameof(path));
-            var full = Path.GetFullPath(path);
-            if (full.Length > 3 && full.EndsWith(Path.DirectorySeparatorChar.ToString()))
-                full = full.TrimEnd(Path.DirectorySeparatorChar);
-            return full;
-        }
-
-        public void BlockExe(string exePath)
+        public static void BlockExe(string exePath)
         {
             ApplyFileDeny(exePath, FileSystemRights.ReadAndExecute);
         }
 
-        public void BlockPath(string path)
+        public static void BlockPath(string path)
         {
             if (Directory.Exists(path))
             {
@@ -41,7 +30,7 @@ namespace OhmamiAgent.SystemControl
             }
         }
 
-        public void Unblock(string path)
+        public static void Unblock(string path)
         {
             if (Directory.Exists(path))
             {
@@ -59,21 +48,21 @@ namespace OhmamiAgent.SystemControl
             }
         }
 
-        private void ApplyFileDeny(string filePath, FileSystemRights rights)
+        private static void ApplyFileDeny(string filePath, FileSystemRights rights)
         {
             var info = new FileInfo(filePath);
             var acl = info.GetAccessControl(AccessControlSections.Access);
-            var rule = new FileSystemAccessRule(_sid, rights, AccessControlType.Deny);
+            var rule = new FileSystemAccessRule(GetCurrentUserSid(), rights, AccessControlType.Deny);
             acl.AddAccessRule(rule);
             info.SetAccessControl(acl);
         }
 
-        private void ApplyDirectoryDeny(string dirPath, FileSystemRights rights)
+        private static void ApplyDirectoryDeny(string dirPath, FileSystemRights rights)
         {
             var info = new DirectoryInfo(dirPath);
             var acl = info.GetAccessControl(AccessControlSections.Access);
             var rule = new FileSystemAccessRule(
-                _sid,
+                GetCurrentUserSid(),
                 rights,
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
                 PropagationFlags.None,
@@ -82,12 +71,12 @@ namespace OhmamiAgent.SystemControl
             info.SetAccessControl(acl);
         }
 
-        private void RemoveOurDenyRules(FileSystemSecurity acl)
+        private static void RemoveOurDenyRules(FileSystemSecurity acl)
         {
             var rules = acl.GetAccessRules(true, true, typeof(SecurityIdentifier));
             foreach (FileSystemAccessRule r in rules)
             {
-                if (r.AccessControlType == AccessControlType.Deny && r.IdentityReference == _sid)
+                if (r.AccessControlType == AccessControlType.Deny && r.IdentityReference == GetCurrentUserSid())
                 {
                     acl.RemoveAccessRule(r);
                 }

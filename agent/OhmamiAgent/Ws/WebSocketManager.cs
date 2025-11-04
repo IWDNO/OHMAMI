@@ -1,4 +1,4 @@
-﻿using OhmamiAgent.SystemControl;
+﻿using OhmamiAgent.SystemControl.Media;
 using System;
 using System.Collections.Generic;
 using System.Net.WebSockets;
@@ -20,11 +20,11 @@ namespace OhmamiAgent.Ws
         {
             this.logger = logger;
             this.configuration = configuration;
-            this.metricsInterval = configuration.GetValue<int>("MetricsIntervalSeconds", 2);
-            this.mediaInterval = configuration.GetValue<int>("MediaIntervalSeconds", 3);
-            this.mediaManager = media;
+            metricsInterval = configuration.GetValue("MetricsIntervalSeconds", 2);
+            mediaInterval = configuration.GetValue("MediaIntervalSeconds", 3);
+            mediaManager = media;
 
-            this.mediaManager.StatusChanged += async payload =>
+            mediaManager.StatusChanged += async payload =>
             {
                 var message = new { type = "media_update", payload };
                 await BroadcastAsync(message);

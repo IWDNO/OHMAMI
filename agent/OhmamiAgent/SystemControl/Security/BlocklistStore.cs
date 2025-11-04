@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-namespace OhmamiAgent.SystemControl
+namespace OhmamiAgent.SystemControl.Security
 {
     public class BlocklistStore
     {

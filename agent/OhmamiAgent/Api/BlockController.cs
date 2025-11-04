@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using OhmamiAgent.SystemControl;
+using OhmamiAgent.SystemControl.FileSystem;
+using OhmamiAgent.SystemControl.Security;
 
 namespace OhmamiAgent.Api
 {
@@ -7,15 +9,11 @@ namespace OhmamiAgent.Api
     [Route("")]
     public class BlockController : ControllerBase
     {
-        private readonly ShortcutResolver _shortcutResolver;
         private readonly BlocklistStore _store;
-        private readonly AclManager _acl;
 
-        public BlockController(ShortcutResolver shortcutResolver, BlocklistStore store, AclManager acl)
+        public BlockController(BlocklistStore store)
         {
-            _shortcutResolver = shortcutResolver;
             _store = store;
-            _acl = acl;
         }
 
         [HttpGet("security/blocked")]
@@ -33,9 +31,9 @@ namespace OhmamiAgent.Api
 
             try
             {
-                var exe = _shortcutResolver.ResolveTargetPath(path);
-                var norm = _acl.Normalize(exe);
-                _acl.BlockExe(norm);
+                var exe = ShortcutResolver.ResolveTargetPath(path);
+                var norm = PathHelper.NormalizeRequired(exe);
+                AclManager.BlockExe(norm);
                 _store.Add(norm);
                 return Ok(new { status = "ok", exe = norm });
             }
@@ -53,8 +51,8 @@ namespace OhmamiAgent.Api
 
             try
             {
-                var norm = _acl.Normalize(path);
-                _acl.BlockPath(norm);
+                var norm = PathHelper.NormalizeRequired(path);
+                AclManager.BlockPath(norm);
                 _store.Add(norm);
                 return Ok(new { status = "ok", path = norm });
             }
@@ -72,8 +70,8 @@ namespace OhmamiAgent.Api
 
             try
             {
-                var norm = _acl.Normalize(path);
-                _acl.Unblock(norm);
+                var norm = PathHelper.NormalizeRequired(path);
+                AclManager.Unblock(norm);
                 _store.Remove(norm);
                 return Ok(new { status = "ok", path = norm });
             }

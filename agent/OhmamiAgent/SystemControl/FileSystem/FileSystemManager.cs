@@ -4,17 +4,17 @@ using System.IO;
 using System.Linq;
 using Microsoft.Extensions.Options;
 
-namespace OhmamiAgent.SystemControl
+namespace OhmamiAgent.SystemControl.FileSystem
 {
     public class FileSystemManager
     {
         private readonly string[] _blacklist;
         private readonly bool _blacklistForRead;
 
-        public FileSystemManager(IOptions<OhmamiAgent.AppConfig> cfg)
+        public FileSystemManager(IOptions<AppConfig> cfg)
         {
             _blacklist = (cfg.Value.BlacklistPaths ?? Array.Empty<string>())
-                .Select(NormalizePathSafe)
+                .Select(PathHelper.NormalizeSafe)
                 .Where(p => !string.IsNullOrEmpty(p))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -30,9 +30,9 @@ namespace OhmamiAgent.SystemControl
                 {
                     Name = d.Name,                    // "C:\\"
                     DriveType = d.DriveType.ToString(),
-                    Ready = SafeReady(d),
-                    TotalSize = SafeReady(d) ? d.TotalSize : (long?)null,
-                    AvailableFreeSpace = SafeReady(d) ? d.AvailableFreeSpace : (long?)null
+                    Ready = PathHelper.IsDriveReady(d),
+                    TotalSize = PathHelper.IsDriveReady(d) ? d.TotalSize : null,
+                    AvailableFreeSpace = PathHelper.IsDriveReady(d) ? d.AvailableFreeSpace : null
                 };
             }
         }
@@ -55,7 +55,7 @@ namespace OhmamiAgent.SystemControl
                     .ToArray();
             }
 
-            var full = NormalizePathRequired(path);
+            var full = PathHelper.NormalizeRequired(path);
 
             if (_blacklistForRead && IsBlacklisted(full))
                 throw new UnauthorizedAccessException("Reading from this path is not allowed.");
@@ -103,14 +103,14 @@ namespace OhmamiAgent.SystemControl
 
         public void CreateDirectory(string path)
         {
-            var full = NormalizePathRequired(path);
+            var full = PathHelper.NormalizeRequired(path);
             DenyIfBlacklisted(full);
             Directory.CreateDirectory(full);
         }
 
         public void DeleteFile(string path)
         {
-            var full = NormalizePathRequired(path);
+            var full = PathHelper.NormalizeRequired(path);
             DenyIfBlacklisted(full);
             if (!File.Exists(full)) throw new FileNotFoundException();
             File.Delete(full);
@@ -118,7 +118,7 @@ namespace OhmamiAgent.SystemControl
 
         public void DeleteDirectory(string path, bool recursive)
         {
-            var full = NormalizePathRequired(path);
+            var full = PathHelper.NormalizeRequired(path);
             DenyIfBlacklisted(full);
             if (!Directory.Exists(full)) throw new DirectoryNotFoundException();
             Directory.Delete(full, recursive);
@@ -126,25 +126,19 @@ namespace OhmamiAgent.SystemControl
 
         public string NormalizeForRead(string path)
         {
-	        if (string.IsNullOrWhiteSpace(path))
-		        throw new ArgumentException("Path is required.", nameof(path));
+            var full = PathHelper.NormalizeRequired(path);
 
-	        var full = Path.IsPathFullyQualified(path) ? path : Path.GetFullPath(path);
-	        full = Path.GetFullPath(full);
-	        if (full.Length > 3 && full.EndsWith(Path.DirectorySeparatorChar.ToString()))
-		        full = full.TrimEnd(Path.DirectorySeparatorChar);
+            if (_blacklistForRead && IsBlacklisted(full))
+                throw new UnauthorizedAccessException("Reading from this path is not allowed.");
 
-	        if (_blacklistForRead && IsBlacklisted(full))
-		        throw new UnauthorizedAccessException("Reading from this path is not allowed.");
-
-	        return full;
+            return full;
         }
 
         public string PrepareUploadPath(string dest, string? fileNameIfDir)
         {
-            var destFull = NormalizePathRequired(dest);
+            var destFull = PathHelper.NormalizeRequired(dest);
             string finalPath;
-            if (Directory.Exists(destFull) || EndsWithDirectorySeparator(dest))
+            if (Directory.Exists(destFull) || PathHelper.EndsWithDirectorySeparator(dest))
             {
                 if (string.IsNullOrEmpty(fileNameIfDir))
                     throw new ArgumentException("Destination is a directory; file name is required.");
@@ -159,7 +153,7 @@ namespace OhmamiAgent.SystemControl
             }
             DenyIfBlacklisted(finalPath);
             // финальная проверка, что путь корректен
-            return NormalizePathRequired(finalPath);
+            return PathHelper.NormalizeRequired(finalPath);
         }
 
         public Dictionary<string, string> GetSpecialFolders()
@@ -181,7 +175,7 @@ namespace OhmamiAgent.SystemControl
             var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (!string.IsNullOrEmpty(userProfile))
             {
-                var downloads = System.IO.Path.Combine(userProfile, "Downloads");
+                var downloads = Path.Combine(userProfile, "Downloads");
                 if (Directory.Exists(downloads))
                     folders["downloads"] = downloads;
             }
@@ -213,48 +207,8 @@ namespace OhmamiAgent.SystemControl
 
         private bool IsBlacklisted(string fullPath)
         {
-            var norm = NormalizePathSafe(fullPath);
-            return _blacklist.Any(b => IsSameOrUnder(norm, b));
-        }
-
-        private static string NormalizePathRequired(string p)
-        {
-            if (string.IsNullOrWhiteSpace(p))
-                throw new ArgumentException("Path is required.", nameof(p));
-            // Относительные пути разрешаем от текущего процесса (можно изменить на текущий диск)
-            return NormalizePathSafe(Path.IsPathFullyQualified(p) ? p : Path.GetFullPath(p));
-        }
-
-        private static string NormalizePathSafe(string p)
-        {
-            var full = Path.GetFullPath(p);
-            // Приведем к стандартной форме без завершающих слешей (кроме корня диска)
-            if (full.Length > 3 && full.EndsWith(Path.DirectorySeparatorChar.ToString()))
-                full = full.TrimEnd(Path.DirectorySeparatorChar);
-            return full;
-        }
-
-        private static bool IsSameOrUnder(string candidate, string prefix)
-        {
-            // Сравнение префикса по границам каталогов
-            if (candidate.Equals(prefix, StringComparison.OrdinalIgnoreCase))
-                return true;
-
-            var withSep = prefix.EndsWith(Path.DirectorySeparatorChar.ToString())
-                ? prefix
-                : prefix + Path.DirectorySeparatorChar;
-
-            return candidate.StartsWith(withSep, StringComparison.OrdinalIgnoreCase);
-        }
-
-        private static bool EndsWithDirectorySeparator(string p)
-        {
-            return p.EndsWith(Path.DirectorySeparatorChar) || p.EndsWith(Path.AltDirectorySeparatorChar);
-        }
-
-        private static bool SafeReady(DriveInfo d)
-        {
-            try { return d.IsReady; } catch { return false; }
+            var norm = PathHelper.NormalizeSafe(fullPath);
+            return _blacklist.Any(b => PathHelper.IsSameOrUnder(norm, b));
         }
 
         public class Entry

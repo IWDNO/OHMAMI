@@ -1,9 +1,9 @@
 ﻿using Windows.Media.Control;
 using Windows.Storage.Streams;
 
-namespace OhmamiAgent.SystemControl
+namespace OhmamiAgent.SystemControl.Media
 {
-    public class MediaManager
+    public class MediaManager: IDisposable
     {
         private GlobalSystemMediaTransportControlsSessionManager? _sessionManager;
         private GlobalSystemMediaTransportControlsSession? _attachedSession;
@@ -46,12 +46,12 @@ namespace OhmamiAgent.SystemControl
 
         private async void OnMediaPropsChangedAsync(GlobalSystemMediaTransportControlsSession s, object e)
         {
-            try { await EmitStatusAsync(); } catch(Exception ex) { System.Console.WriteLine(ex); }
+            try { await EmitStatusAsync(); } catch(Exception ex) { Console.WriteLine(ex); }
         }
 
         private async void OnPlaybackInfoChangedAsync(GlobalSystemMediaTransportControlsSession s, object e)
         {
-            try { await EmitStatusAsync(); } catch (Exception ex) { System.Console.WriteLine(ex); }
+            try { await EmitStatusAsync(); } catch (Exception ex) { Console.WriteLine(ex); }
         }
 
         private async Task EmitStatusAsync()
@@ -63,12 +63,12 @@ namespace OhmamiAgent.SystemControl
             }
         }
 
-        public async Task<Object?> GetStatusAsync()
+        public async Task<object?> GetStatusAsync()
         {
             var session = CurrentSession;
             if (session == null) return null;
 
-            Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties? mediaProps = null;
+            GlobalSystemMediaTransportControlsSessionMediaProperties? mediaProps = null;
             try
             {
                 mediaProps = await session.TryGetMediaPropertiesAsync();
@@ -105,8 +105,8 @@ namespace OhmamiAgent.SystemControl
                 title = mediaProps.Title,
                 artist = mediaProps.Artist,
                 album = mediaProps.AlbumTitle,
-                playbackStatus = playbackStatus,
-                thumbnailBase64 = thumbnailBase64
+                playbackStatus,
+                thumbnailBase64
             };
         }
 
@@ -121,5 +121,16 @@ namespace OhmamiAgent.SystemControl
 
         public async Task PreviousAsync() =>
             await CurrentSession?.TrySkipPreviousAsync();
+
+        public void Dispose()
+        {
+            if (_attachedSession != null)
+            {
+                _attachedSession.MediaPropertiesChanged -= OnMediaPropsChangedAsync;
+                _attachedSession.PlaybackInfoChanged -= OnPlaybackInfoChangedAsync;
+            }
+            _sessionManager = null;
+            _attachedSession = null;
+        }
     }
 }
