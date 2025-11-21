@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:ohmami_app/screens/app_screen.dart';
 import 'services/connection_service.dart';
 import 'package:ohmami_app/screens/system_screen.dart';
 import 'package:ohmami_app/widgets/dummy_widget.dart';
 import 'package:home_widget/home_widget.dart';
 import 'services/power_widget_update.dart';
+import 'package:ohmami_app/widgets/app_widget.dart';
 
 
 import './widgets/connection_widget.dart';
@@ -38,6 +40,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     // DummyWidget(),
     SystemScreen(),
     ControlScreen2(),
+    AppScreen()
   ];
 
   @override
@@ -98,7 +101,12 @@ class _AppState extends State<App> with WidgetsBindingObserver {
               icon: Icon(Icons.manage_accounts_sharp),
               label: 'metric',
             ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.manage_accounts_sharp),
+              label: 'metric',
+            ),
           ],
+          
         ),
       ),
     );
