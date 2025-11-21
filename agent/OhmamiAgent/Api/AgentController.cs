@@ -9,9 +9,9 @@ namespace OhmamiAgent.Api
     [Route("")]
     public class AgentController : ControllerBase
     {
-        private readonly OhmamiAgent.Ws.WebSocketManager _wsManager;
+        private readonly Ws.WebSocketManager _wsManager;
 
-        public AgentController(OhmamiAgent.Ws.WebSocketManager wsManager)
+        public AgentController(Ws.WebSocketManager wsManager)
         {
             _wsManager = wsManager;
         }

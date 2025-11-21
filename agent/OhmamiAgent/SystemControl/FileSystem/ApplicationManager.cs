@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 
-namespace OhmamiAgent.SystemControl
+namespace OhmamiAgent.SystemControl.FileSystem
 {
     public class ApplicationManager
     {

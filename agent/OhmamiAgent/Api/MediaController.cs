@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using OhmamiAgent.SystemControl;
+using OhmamiAgent.SystemControl.Media;
 using System;
 using System.Collections.Generic;
 using System.Linq;

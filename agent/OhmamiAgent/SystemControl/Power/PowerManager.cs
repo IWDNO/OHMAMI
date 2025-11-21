@@ -1,6 +1,6 @@
 ﻿using System.Runtime.InteropServices;
 
-namespace OhmamiAgent.SystemControl
+namespace OhmamiAgent.SystemControl.Power
 {
     public class PowerManager
     {
@@ -20,17 +20,17 @@ namespace OhmamiAgent.SystemControl
 
         // Для прав
         [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool OpenProcessToken(IntPtr ProcessHandle, uint DesiredAccess, out IntPtr TokenHandle);
+        private static extern bool OpenProcessToken(nint ProcessHandle, uint DesiredAccess, out nint TokenHandle);
 
         [DllImport("kernel32.dll")]
-        private static extern IntPtr GetCurrentProcess();
+        private static extern nint GetCurrentProcess();
 
         [DllImport("advapi32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, out LUID lpLuid);
 
         [DllImport("advapi32.dll", SetLastError = true)]
-        private static extern bool AdjustTokenPrivileges(IntPtr TokenHandle, bool DisableAllPrivileges,
-            ref TOKEN_PRIVILEGES NewState, uint Zero, IntPtr Null1, IntPtr Null2);
+        private static extern bool AdjustTokenPrivileges(nint TokenHandle, bool DisableAllPrivileges,
+            ref TOKEN_PRIVILEGES NewState, uint Zero, nint Null1, nint Null2);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct LUID
@@ -66,7 +66,7 @@ namespace OhmamiAgent.SystemControl
                 Attributes = SE_PRIVILEGE_ENABLED
             };
 
-            if (!AdjustTokenPrivileges(tokenHandle, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero))
+            if (!AdjustTokenPrivileges(tokenHandle, false, ref tp, 0, nint.Zero, nint.Zero))
                 throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error(), "AdjustTokenPrivileges failed");
         }
 
