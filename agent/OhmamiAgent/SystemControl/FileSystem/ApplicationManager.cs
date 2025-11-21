@@ -63,10 +63,7 @@ namespace OhmamiAgent.SystemControl.FileSystem
                 throw new ArgumentException("Path is required.", nameof(path));
 
             if (!File.Exists(path))
-                throw new FileNotFoundException("Application shortcut not found.", path);
-
-            if (!IsUnderAllowedRoots(path))
-                throw new UnauthorizedAccessException("Launching this path is not allowed.");
+                throw new FileNotFoundException("Application not found.", path);
 
             var psi = new ProcessStartInfo
             {
@@ -75,18 +72,6 @@ namespace OhmamiAgent.SystemControl.FileSystem
                 WorkingDirectory = Path.GetDirectoryName(path) ?? Environment.CurrentDirectory
             };
             Process.Start(psi);
-        }
-
-        private bool IsUnderAllowedRoots(string path)
-        {
-            var full = Path.GetFullPath(path);
-            foreach (var root in _roots)
-            {
-                var r = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-                if (full.StartsWith(r, StringComparison.OrdinalIgnoreCase))
-                    return true;
-            }
-            return false;
         }
     }
 
