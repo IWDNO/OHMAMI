@@ -1,0 +1,84 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="#FFFFFFFF"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <TextView
+        android:id="@+id/tv_title"
+        android:text="Управление питанием"
+        android:textStyle="bold"
+        android:textSize="16sp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:weightSum="2"
+        android:paddingTop="8dp">
+
+        <TextView
+            android:id="@+id/btn_sleep"
+            android:text="Сон"
+            android:padding="10dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="#FF2962FF"
+            android:background="#112962FF"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:id="@+id/btn_hibernate"
+            android:text="Гибернация"
+            android:padding="10dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="#FF7B1FA2"
+            android:background="#117B1FA2"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:weightSum="2"
+        android:paddingTop="6dp">
+
+        <TextView
+            android:id="@+id/btn_restart"
+            android:text="Перезагрузка"
+            android:padding="10dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="#FFFF6D00"
+            android:background="#11FF6D00"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"/>
+
+        <TextView
+            android:id="@+id/btn_shutdown"
+            android:text="Выключение"
+            android:padding="10dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:textColor="#FFD50000"
+            android:background="#11D50000"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"/>
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_status"
+        android:text="Готово"
+        android:textSize="12sp"
+        android:paddingTop="8dp"
+        android:textColor="#FF666666"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"/>
+</LinearLayout>
