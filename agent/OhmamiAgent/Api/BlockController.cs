@@ -31,8 +31,8 @@ namespace OhmamiAgent.Api
 
             try
             {
-                var exe = ShortcutResolver.ResolveTargetPath(path);
-                var norm = PathHelper.NormalizeRequired(exe);
+                //var exe = ShortcutResolver.ResolveTargetPath(path);
+                var norm = PathHelper.NormalizeRequired(path);
                 AclManager.BlockExe(norm);
                 _store.Add(norm);
                 return Ok(new { status = "ok", exe = norm });

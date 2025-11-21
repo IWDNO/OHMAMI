@@ -32,8 +32,9 @@ namespace OhmamiAgent.SystemControl.FileSystem
                     var links = Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories);
                     foreach (var lnk in links)
                     {
+                        var exe = ShortcutResolver.ResolveTargetPath(lnk);
                         var name = Path.GetFileNameWithoutExtension(lnk);
-                        items.Add(new AppInfo { Name = name, Path = lnk });
+                        items.Add(new AppInfo { Name = name, Path = exe });
                     }
                 }
                 catch { /* ignore */ }
