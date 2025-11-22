@@ -167,6 +167,72 @@ class _AppLauncherWidgetState extends State<AppLauncherWidget> {
     }
   }
 
+  Future<void> _blockApp(Map<String, dynamic> app) async {
+    final path = app['path'] as String?;
+    if (path == null || path.isEmpty) {
+      _showErrorMessage('Путь к приложению не указан');
+      return;
+    }
+
+    // Показываем диалог подтверждения
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Заблокировать приложение?'),
+          content: Text('Вы уверены, что хотите заблокировать "${app['name'] ?? path}"?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.red,
+              ),
+              child: const Text('Заблокировать'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final endpoint = '/security/block/app?path=${Uri.encodeQueryComponent(path)}';
+      final resp = await _conn.request('POST', endpoint);
+
+      if (resp.statusCode != 200) {
+        throw Exception('HTTP ${resp.statusCode}');
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] != 'ok') {
+        throw Exception(body['message'] ?? 'Ошибка блокировки');
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Приложение заблокировано: ${app['name'] ?? path}'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при блокировке: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   void _showErrorMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -212,11 +278,22 @@ class _AppLauncherWidgetState extends State<AppLauncherWidget> {
               overflow: TextOverflow.ellipsis,
             )
           : null,
-      trailing: IconButton(
-        icon: const Icon(Icons.play_arrow),
-        color: Theme.of(context).colorScheme.primary,
-        onPressed: () => _launchApp(app),
-        tooltip: 'Запустить',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.block),
+            color: Colors.orange,
+            onPressed: () => _blockApp(app),
+            tooltip: 'Заблокировать',
+          ),
+          IconButton(
+            icon: const Icon(Icons.play_arrow),
+            color: Theme.of(context).colorScheme.primary,
+            onPressed: () => _launchApp(app),
+            tooltip: 'Запустить',
+          ),
+        ],
       ),
       onTap: () => _launchApp(app),
     );
