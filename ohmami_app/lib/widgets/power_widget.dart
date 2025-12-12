@@ -46,9 +46,6 @@ class _PowerWidgetState extends State<PowerWidget> {
   Future<void> _request(String endpoint) async {
     if (_isLoading) return;
     
-    setState(() {
-      _isLoading = true;
-    });
 
     try {
       final response = await _connectionService.request('GET', endpoint);

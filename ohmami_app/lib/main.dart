@@ -7,9 +7,9 @@ import 'package:home_widget/home_widget.dart';
 import 'services/power_widget_update.dart';
 import 'package:ohmami_app/widgets/app_widget.dart';
 
-
 import './widgets/connection_widget.dart';
 import './screens/control_screen.dart';
+import './screens/home_screen.dart';
 
 
 
@@ -32,17 +32,6 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> with WidgetsBindingObserver {
-  int _currentIndex = 0;
-
-  final List<Widget> _pages = const [
-    ConnectionWidget(),
-    ControlScreen(),
-    // DummyWidget(),
-    SystemScreen(),
-    ControlScreen2(),
-    AppScreen()
-  ];
-
   @override
   void initState() {
     super.initState();
@@ -66,49 +55,22 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'OHMAMI!',
-      home: Scaffold(
-        body: IndexedStack(
-          index: _currentIndex,
-          children: _pages,
-        ),
-        bottomNavigationBar: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          onTap: (index) {
-            setState(() {
-              _currentIndex = index;
-            });
-          },
-          selectedItemColor: Colors.blue,
-          unselectedItemColor: Colors.grey,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.wifi_tethering),
-              label: 'Connection',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.play_circle_outline),
-              label: 'Media',
-            ),
-            // BottomNavigationBarItem(
-            //   icon: Icon(Icons.document_scanner),
-            //   label: 'None',
-            // ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.manage_accounts_sharp),
-              label: 'metric',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.manage_accounts_sharp),
-              label: 'metric',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.manage_accounts_sharp),
-              label: 'metric',
-            ),
-          ],
-          
+      theme: ThemeData(
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          brightness: Brightness.dark,
         ),
       ),
+      home: const ConnectionWidget(),
+      routes: {
+        '/home': (context) => const HomeScreen(),
+        '/connection': (context) => const ConnectionWidget(),
+        '/control': (context) => const ControlScreen(),
+        '/media': (context) => const ControlScreen2(),
+        '/system': (context) => const SystemScreen(),
+        '/apps': (context) => const AppScreen(),
+      },
     );
   }
 }
