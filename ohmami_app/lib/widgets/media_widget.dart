@@ -225,6 +225,7 @@ class _MediaWidgetState extends State<MediaWidget> {
                   onPressed: _previous,
                   icon: const Icon(Icons.skip_previous),
                   iconSize: 32,
+                  tooltip: 'Предыдущий трек',
                   style: IconButton.styleFrom(
                     backgroundColor: Colors.blue[100],
                     foregroundColor: Colors.blue[700],
@@ -236,6 +237,7 @@ class _MediaWidgetState extends State<MediaWidget> {
                   onPressed: (_isPlaying ? _pause : _play),
                   icon: Icon(_isPlaying ? Icons.pause : Icons.play_arrow),
                   iconSize: 40,
+                  tooltip: _isPlaying ? 'Пауза' : 'Воспроизвести',
                   style: IconButton.styleFrom(
                     backgroundColor: _isPlaying ? Colors.orange[100] : Colors.green[100],
                     foregroundColor: _isPlaying ? Colors.orange[700] : Colors.green[700],
@@ -247,6 +249,7 @@ class _MediaWidgetState extends State<MediaWidget> {
                   onPressed: _next,
                   icon: const Icon(Icons.skip_next),
                   iconSize: 32,
+                  tooltip: 'Следующий трек',
                   style: IconButton.styleFrom(
                     backgroundColor: Colors.blue[100],
                     foregroundColor: Colors.blue[700],

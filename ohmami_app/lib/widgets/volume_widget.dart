@@ -217,10 +217,15 @@ class _VolumeWidgetState extends State<VolumeWidget> {
 
                 const SizedBox(width: 8),
 
-                OutlinedButton.icon(
+                OutlinedButton(
                   onPressed: _toggleMute,
-                  icon: Icon(_isMuted ? Icons.volume_up : Icons.volume_off),
-                  label: Text(_isMuted ? 'Unmute' : 'Mute'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.all(8.0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(50),
+                    ),
+                  ),
+                  child: Icon(_isMuted ? Icons.volume_up : Icons.volume_off),
                 ),
               ],
             ),

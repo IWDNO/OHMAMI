@@ -229,14 +229,17 @@ class _BlockedAppsWidgetState extends State<BlockedAppsWidget> {
                   size: 24,
                 ),
                 const SizedBox(width: 8),
-                const Text(
-                  'Заблокированные приложения',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                const Expanded(
+                  child: Text(
+                    'Заблокированные приложения',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 if (_isLoading)
                   const SizedBox(
                     width: 20,
