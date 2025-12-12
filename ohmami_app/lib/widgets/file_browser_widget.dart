@@ -24,6 +24,7 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
   String? error;
   List<Map<String, dynamic>> entries = <Map<String, dynamic>>[];
   Map<String, String> specialFolders = {};
+  Set<String> blockedPaths = <String>{};
 
   String? get currentPath => pathStack.isEmpty ? null : pathStack.last;
 
@@ -32,6 +33,7 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     super.initState();
     _loadListing(null);
     _loadSpecialFolders();
+    _loadBlockedPaths();
   }
 
   Future<void> _loadSpecialFolders() async {
@@ -50,6 +52,26 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     } catch (e) {
       // Игнорируем ошибки загрузки специальных папок
       print('Error loading special folders: $e');
+    }
+  }
+
+  Future<void> _loadBlockedPaths() async {
+    try {
+      final resp = await _conn.request('GET', '/security/blocked');
+      if (resp.statusCode != 200) {
+        return;
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] == 'ok' && body['data'] != null) {
+        final List data = (body['data'] as List? ?? <dynamic>[]);
+        setState(() {
+          blockedPaths = data.map<String>((e) => e.toString()).toSet();
+        });
+      }
+    } catch (e) {
+      // Игнорируем ошибки загрузки заблокированных путей
+      print('Error loading blocked paths: $e');
     }
   }
 
@@ -86,6 +108,8 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
       setState(() {
         entries = data.map<Map<String, dynamic>>((e) => Map<String, dynamic>.from(e as Map)).toList();
       });
+      // Обновляем список заблокированных путей для актуального состояния
+      _loadBlockedPaths();
     } catch (e) {
       setState(() {
         error = e.toString();
@@ -316,6 +340,142 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     }
   }
 
+  Future<void> _blockPath(Map<String, dynamic> item) async {
+    final String itemPath = (item['path'] as String?) ?? '';
+    final String name = (item['name'] as String?) ?? 'file';
+
+    if (itemPath.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ошибка: путь к файлу пустой'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Проверяем, не заблокирован ли уже файл
+    if (blockedPaths.contains(itemPath)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Файл уже заблокирован'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      error = null;
+    });
+
+    try {
+      final endpoint = '/security/block/path?path=${Uri.encodeQueryComponent(itemPath)}';
+      final resp = await _conn.request('POST', endpoint);
+
+      if (resp.statusCode != 200) {
+        throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] != 'ok') {
+        throw Exception('Ошибка: ${body['message'] ?? 'Unknown error'}');
+      }
+
+      // Обновляем список заблокированных путей
+      await _loadBlockedPaths();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Заблокировано: $name'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        error = e.toString();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при блокировке: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _unblockPath(Map<String, dynamic> item) async {
+    final String itemPath = (item['path'] as String?) ?? '';
+    final String name = (item['name'] as String?) ?? 'file';
+
+    if (itemPath.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ошибка: путь к файлу пустой'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Проверяем, заблокирован ли файл
+    if (!blockedPaths.contains(itemPath)) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Файл не заблокирован'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      error = null;
+    });
+
+    try {
+      final endpoint = '/security/unblock?path=${Uri.encodeQueryComponent(itemPath)}';
+      final resp = await _conn.request('DELETE', endpoint);
+
+      if (resp.statusCode != 200) {
+        throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] != 'ok') {
+        throw Exception('Ошибка: ${body['message'] ?? 'Unknown error'}');
+      }
+
+      // Обновляем список заблокированных путей
+      await _loadBlockedPaths();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Разблокировано: $name'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        error = e.toString();
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при разблокировке: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Future<void> _deleteItem(Map<String, dynamic> item) async {
     final bool isDir = item['isDirectory'] == true;
     final bool isDrive = item['isDrive'] == true;
@@ -408,6 +568,35 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<void> _showBlockedFilesDialog() async {
+    // Загружаем актуальный список заблокированных файлов
+    await _loadBlockedPaths();
+    
+    if (!mounted) return;
+    
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return _BlockedFilesDialog(
+          connectionService: _conn,
+          initialBlockedPaths: blockedPaths.toList(),
+          onUpdate: () async {
+            await _loadBlockedPaths();
+            if (mounted) {
+              setState(() {});
+            }
+          },
+        );
+      },
+    );
+    
+    // Обновляем список после закрытия диалога
+    await _loadBlockedPaths();
+    if (mounted) {
+      setState(() {});
     }
   }
 
@@ -524,6 +713,8 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     final name = (item['name'] as String?) ?? '';
     final modified = (item['modifiedUtc'] as String?) ?? '';
     final size = item['size'];
+    final String itemPath = (item['path'] as String?) ?? '';
+    final bool isBlocked = blockedPaths.contains(itemPath);
 
     IconData icon;
     if (isDrive) {
@@ -535,10 +726,19 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
     }
 
     return ListTile(
-      leading: Icon(icon),
+      leading: Icon(
+        icon,
+        color: isBlocked ? Colors.red : null,
+      ),
       title: Text(name),
       subtitle: Row(
         children: [
+          if (isBlocked) ...[
+            Icon(Icons.block, size: 14, color: Colors.red),
+            const SizedBox(width: 4),
+            const Text('Заблокировано', style: TextStyle(color: Colors.red)),
+            const SizedBox(width: 8),
+          ],
           if (isDir || isDrive)
             const Text('Папка')
           else
@@ -549,7 +749,55 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
           ],
         ],
       ),
-      trailing: isDir || isDrive ? const Icon(Icons.chevron_right) : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PopupMenuButton<String>(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+            iconSize: 18,
+            onSelected: (value) {
+              if (value == 'block') {
+                _blockPath(item);
+              } else if (value == 'unblock') {
+                _unblockPath(item);
+              }
+            },
+            itemBuilder: (BuildContext context) => [
+              if (!isBlocked)
+                const PopupMenuItem<String>(
+                  value: 'block',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.block, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Заблокировать'),
+                    ],
+                  ),
+                ),
+              if (isBlocked)
+                const PopupMenuItem<String>(
+                  value: 'unblock',
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_open, color: Colors.green),
+                      SizedBox(width: 8),
+                      Text('Разблокировать'),
+                    ],
+                  ),
+                ),
+            ],
+            icon: const Icon(Icons.more_vert, size: 18),
+          ),
+          if (isDir || isDrive) 
+            const Padding(
+              padding: EdgeInsets.only(left: 2.0),
+              child: Icon(Icons.chevron_right, size: 18),
+            ),
+        ],
+      ),
       onTap: () => _enter(item),
       onLongPress: () => _deleteItem(item),
     );
@@ -669,6 +917,14 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
               onPressed: () => _loadListing(currentPath),
               icon: const Icon(Icons.refresh),
             ),
+            IconButton(
+              tooltip: 'Заблокированные файлы',
+              onPressed: _showBlockedFilesDialog,
+              icon: Icon(
+                Icons.block,
+                color: blockedPaths.isEmpty ? null : Colors.red,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 8),
@@ -679,6 +935,193 @@ class _FileBrowserWidgetState extends State<FileBrowserWidget> {
                   itemCount: entries.length,
                   itemBuilder: (context, index) => _buildEntryTile(entries[index]),
                 ),
+        ),
+      ],
+    );
+  }
+}
+
+class _BlockedFilesDialog extends StatefulWidget {
+  final ConnectionService connectionService;
+  final List<String> initialBlockedPaths;
+  final VoidCallback onUpdate;
+
+  const _BlockedFilesDialog({
+    required this.connectionService,
+    required this.initialBlockedPaths,
+    required this.onUpdate,
+  });
+
+  @override
+  State<_BlockedFilesDialog> createState() => _BlockedFilesDialogState();
+}
+
+class _BlockedFilesDialogState extends State<_BlockedFilesDialog> {
+  late List<String> blockedPaths;
+  bool isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    blockedPaths = List<String>.from(widget.initialBlockedPaths);
+  }
+
+  Future<void> _loadBlockedPaths() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final resp = await widget.connectionService.request('GET', '/security/blocked');
+      if (resp.statusCode != 200) {
+        return;
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] == 'ok' && body['data'] != null) {
+        final List data = (body['data'] as List? ?? <dynamic>[]);
+        setState(() {
+          blockedPaths = data.map<String>((e) => e.toString()).toList();
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _unblockPath(String path) async {
+    try {
+      final endpoint = '/security/unblock?path=${Uri.encodeQueryComponent(path)}';
+      final resp = await widget.connectionService.request('DELETE', endpoint);
+
+      if (resp.statusCode != 200) {
+        throw Exception('HTTP ${resp.statusCode}: ${resp.body}');
+      }
+
+      final body = json.decode(resp.body) as Map<String, dynamic>;
+      if (body['status'] != 'ok') {
+        throw Exception('Ошибка: ${body['message'] ?? 'Unknown error'}');
+      }
+
+      // Обновляем список
+      await _loadBlockedPaths();
+      widget.onUpdate();
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Разблокировано: ${path.split(RegExp(r'[/\\]')).last}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Ошибка при разблокировке: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.block, color: Colors.red[700]),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Заблокированные файлы',
+              maxLines: 2,
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            )
+          ),
+
+
+          if (isLoading) ...[
+            const SizedBox(width: 8),
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
+        ],
+      ),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: blockedPaths.isEmpty
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.check_circle_outline,
+                        size: 48,
+                        color: Colors.green[400],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Нет заблокированных файлов',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                itemCount: blockedPaths.length,
+                itemBuilder: (context, index) {
+                  final path = blockedPaths[index];
+                  final fileName = path.split(RegExp(r'[/\\]')).last;
+                  
+                  return ListTile(
+                    leading: Icon(
+                      Icons.block,
+                      color: Colors.red[700],
+                    ),
+                    title: Text(fileName),
+                    subtitle: Text(
+                      path,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                        fontFamily: 'monospace',
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.lock_open, color: Colors.green),
+                      onPressed: () => _unblockPath(path),
+                      tooltip: 'Разблокировать',
+                    ),
+                    onTap: () => _unblockPath(path),
+                  );
+                },
+              ),
+      ),
+      actions: [
+        TextButton.icon(
+          onPressed: isLoading ? null : _loadBlockedPaths,
+          icon: const Icon(Icons.refresh),
+          label: const Text('Обновить'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Закрыть'),
         ),
       ],
     );
