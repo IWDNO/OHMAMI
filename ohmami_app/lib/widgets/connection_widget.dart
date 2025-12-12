@@ -31,9 +31,6 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
 
     _wsSubscription = _connectionService.wsMessages.stream.listen((message) {
       setState(() {
-        const maxLen = 1200;
-        final truncated = message.length > maxLen ? '${message.substring(0, maxLen)}...' : message;
-        _log.insert(0, "WS: $truncated");
       });
     });
   }
@@ -98,7 +95,7 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
     return MaterialApp(
       title: 'Ohmami Minimal',
       home: Scaffold(
-        appBar: AppBar(title: Text('Ohmami — minimal')),
+        appBar: AppBar(title: Text('Подключение')),
         body: Padding(
           padding: EdgeInsets.all(12),
           child: Column(children: [

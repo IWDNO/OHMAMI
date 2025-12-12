@@ -10,7 +10,7 @@ class ControlScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Media Control'),
+        title: const Text('Проводник'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: const Padding(
@@ -44,7 +44,7 @@ class ControlScreen2 extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Media Control'),
+        title: const Text('Мультимедия'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: const Padding(
