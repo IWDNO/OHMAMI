@@ -16,6 +16,7 @@ builder.Services.AddSingleton<ApplicationManager>();
 builder.Services.AddSingleton<AudioManager>();
 builder.Services.AddSingleton<MediaManager>();
 builder.Services.AddSingleton<BlocklistStore>();
+builder.Services.AddSingleton<HostsManager>();
 builder.Services.AddSingleton<OhmamiAgent.Ws.WebSocketManager>();
 builder.Services.AddSingleton<MdnsPublisher>();
 //builder.Services.AddHostedService<MetricsHostedService>();
