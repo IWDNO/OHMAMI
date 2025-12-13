@@ -1,5 +1,7 @@
+using Microsoft.Extensions.DependencyInjection;
 using OhmamiAgent;
 using OhmamiAgent.Mdns;
+using OhmamiAgent.Stream;
 using OhmamiAgent.SystemControl.FileSystem;
 using OhmamiAgent.SystemControl.Media;
 using OhmamiAgent.SystemControl.Security;
@@ -19,6 +21,7 @@ builder.Services.AddSingleton<BlocklistStore>();
 builder.Services.AddSingleton<HostsManager>();
 builder.Services.AddSingleton<OhmamiAgent.Ws.WebSocketManager>();
 builder.Services.AddSingleton<MdnsPublisher>();
+builder.Services.AddSingleton<ScreenShareService>();
 //builder.Services.AddHostedService<MetricsHostedService>();
 builder.Services.AddHostedService<ProcessBlockerHostedService>();
 
