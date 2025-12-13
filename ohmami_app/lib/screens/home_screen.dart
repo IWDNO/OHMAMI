@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:ohmami_app/widgets/stream_widget.dart';
 import '../widgets/connection_widget.dart';
 import 'control_screen.dart';
 import 'system_screen.dart';
@@ -115,6 +116,18 @@ class HomeScreen extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) => const AppScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      _GlassButton(
+                        icon: Icons.manage_accounts,
+                        label: 'Стриминг',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const StreamWidget(),
                             ),
                           );
                         },

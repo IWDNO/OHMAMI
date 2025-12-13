@@ -3,9 +3,7 @@ import 'package:ohmami_app/screens/app_screen.dart';
 import 'services/connection_service.dart';
 import 'package:ohmami_app/screens/system_screen.dart';
 import 'package:ohmami_app/widgets/dummy_widget.dart';
-import 'package:home_widget/home_widget.dart';
-import 'services/power_widget_update.dart';
-import 'package:ohmami_app/widgets/app_widget.dart';
+import 'package:ohmami_app/widgets/stream_widget.dart';
 
 import './widgets/connection_widget.dart';
 import './screens/control_screen.dart';
@@ -13,16 +11,8 @@ import './screens/home_screen.dart';
 
 
 
-@pragma('vm:entry-point')
-Future<void> backgroundCallback(Uri? uri) async {
-  await PowerHomeWidget.handleBackgroundUri(uri);
-}
+void main() => runApp(App());
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await HomeWidget.registerInteractivityCallback(backgroundCallback);
-  runApp(const App());
-}
 
 class App extends StatefulWidget {
   const App({super.key});
@@ -70,6 +60,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         '/media': (context) => const ControlScreen2(),
         '/system': (context) => const SystemScreen(),
         '/apps': (context) => const AppScreen(),
+        '/stream':(context) => const StreamWidget(),
       },
     );
   }
