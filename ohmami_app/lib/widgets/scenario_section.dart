@@ -2,157 +2,166 @@ import 'dart:convert';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:ohmami_app/services/connection_service.dart';
-import 'package:ohmami_app/widgets/stream_widget.dart';
-import '../widgets/scenario_section.dart';
 
-import '../widgets/connection_widget.dart';
-import '../widgets/scenario_section.dart';
-import 'control_screen.dart';
-import 'system_screen.dart';
-import 'app_screen.dart';
+import '../services/connection_service.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class Scenario {
+  final String name;
+  final List<String> launchAppPaths;
+  final List<String> blockPaths;
+
+  Scenario({
+    required this.name,
+    required this.launchAppPaths,
+    required this.blockPaths,
+  });
+
+  bool get hasActions =>
+      launchAppPaths.isNotEmpty || blockPaths.isNotEmpty;
+}
+
+class ScenarioSection extends StatefulWidget {
+  const ScenarioSection({super.key});
+
+  @override
+  State<ScenarioSection> createState() => _ScenarioSectionState();
+}
+
+class _ScenarioSectionState extends State<ScenarioSection> {
+  final ConnectionService _conn = ConnectionService();
+  final List<Scenario> _scenarios = [];
+
+  Future<void> _runScenario(Scenario scenario) async {
+    if (!scenario.hasActions) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Сценарий не содержит действий'),
+        ),
+      );
+      return;
+    }
+
+    String? error;
+
+    // Запуск приложений
+    for (final path in scenario.launchAppPaths) {
+      try {
+        final endpoint =
+            '/apps/launch?path=${Uri.encodeQueryComponent(path)}';
+        final resp = await _conn.request('POST', endpoint);
+
+        if (resp.statusCode != 200) {
+          throw Exception('HTTP ${resp.statusCode}');
+        }
+
+        final body = json.decode(resp.body) as Map<String, dynamic>;
+        if (body['status'] != 'ok') {
+          throw Exception(body['message'] ?? 'Ошибка запуска');
+        }
+      } catch (e) {
+        error = (error ?? '') + '\nОшибка запуска: $path — $e';
+      }
+    }
+
+    // Блокировка путей/приложений
+    for (final path in scenario.blockPaths) {
+      try {
+        final endpoint =
+            '/security/block/app?path=${Uri.encodeQueryComponent(path)}';
+        final resp = await _conn.request('POST', endpoint);
+
+        if (resp.statusCode != 200) {
+          throw Exception('HTTP ${resp.statusCode}');
+        }
+
+        final body = json.decode(resp.body) as Map<String, dynamic>;
+        if (body['status'] != 'ok') {
+          throw Exception(body['message'] ?? 'Ошибка блокировки');
+        }
+      } catch (e) {
+        error = (error ?? '') + '\nОшибка блокировки: $path — $e';
+      }
+    }
+
+    if (!mounted) return;
+
+    if (error == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Сценарий "${scenario.name}" выполнен'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Сценарий "${scenario.name}" выполнен с ошибками:$error',
+          ),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openAddScenarioDialog() async {
+    final scenario = await showDialog<Scenario>(
+      context: context,
+      builder: (context) => const _ScenarioEditorDialog(),
+    );
+
+    if (scenario == null) return;
+
+    setState(() {
+      _scenarios.add(scenario);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          color: Colors.black,
+    // Всегда показываем блок, чтобы была кнопка добавления
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Сценарии',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Заголовок
-                Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 32, vertical: 20),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: const Text(
-                          'OHMAMI',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                      ),
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final scenario in _scenarios)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: SizedBox(
+                    width: 150,
+                    height: 120,
+                    child: _GlassButton(
+                      icon: Icons.playlist_play,
+                      label: scenario.name,
+                      onTap: () => _runScenario(scenario),
                     ),
                   ),
                 ),
-                const SizedBox(height: 40),
-
-                // Кнопки навигации
-                Expanded(
-                  child: GridView.count(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
-                    children: [
-                      _GlassButton(
-                        icon: Icons.wifi_tethering,
-                        label: 'Подключение',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  const ConnectionWidget(),
-                            ),
-                          );
-                        },
-                      ),
-                      _GlassButton(
-                        icon: Icons.folder,
-                        label: 'Проводник',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ControlScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _GlassButton(
-                        icon: Icons.play_circle_outline,
-                        label: 'Мультимедиа',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ControlScreen2(),
-                            ),
-                          );
-                        },
-                      ),
-                      _GlassButton(
-                        icon: Icons.manage_accounts,
-                        label: 'Система',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const SystemScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _GlassButton(
-                        icon: Icons.apps,
-                        label: 'Приложения',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const AppScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      _GlassButton(
-                        icon: Icons.manage_accounts,
-                        label: 'Стриминг',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const StreamWidget(),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+              SizedBox(
+                width: 150,
+                height: 120,
+                child: _GlassButton(
+                  icon: Icons.add,
+                  label: 'Добавить сценарий',
+                  onTap: _openAddScenarioDialog,
                 ),
-
-                const SizedBox(height: 16),
-
-                // Сценарии (отдельный виджет)
-                const ScenarioSection(),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -265,8 +274,7 @@ class _ScenarioEditorDialogState extends State<_ScenarioEditorDialog> {
         throw Exception('HTTP ${resp.statusCode}');
       }
 
-      final body =
-          json.decode(resp.body) as Map<String, dynamic>;
+      final body = json.decode(resp.body) as Map<String, dynamic>;
       if (body['status'] != 'ok') {
         throw Exception('Status: ${body['status']}');
       }
@@ -301,10 +309,8 @@ class _ScenarioEditorDialogState extends State<_ScenarioEditorDialog> {
 
     setState(() {
       _filteredApps = _apps.where((app) {
-        final name =
-            (app['name'] as String? ?? '').toLowerCase();
-        final path =
-            (app['path'] as String? ?? '').toLowerCase();
+        final name = (app['name'] as String? ?? '').toLowerCase();
+        final path = (app['path'] as String? ?? '').toLowerCase();
         return name.contains(query) || path.contains(query);
       }).toList();
     });
@@ -332,8 +338,7 @@ class _ScenarioEditorDialogState extends State<_ScenarioEditorDialog> {
 
   bool get _canSave {
     return _nameController.text.trim().isNotEmpty &&
-        (_selectedLaunchApps.isNotEmpty ||
-            _selectedBlockApps.isNotEmpty);
+        (_selectedLaunchApps.isNotEmpty || _selectedBlockApps.isNotEmpty);
   }
 
   void _onSave() {
@@ -412,36 +417,28 @@ class _ScenarioEditorDialogState extends State<_ScenarioEditorDialog> {
                           : ListView.builder(
                               itemCount: _filteredApps.length,
                               itemBuilder: (context, index) {
-                                final app =
-                                    _filteredApps[index];
+                                final app = _filteredApps[index];
                                 final name =
-                                    (app['name'] as String?) ??
-                                        'Приложение';
+                                    (app['name'] as String?) ?? 'Приложение';
                                 final path =
-                                    (app['path'] as String?) ??
-                                        '';
+                                    (app['path'] as String?) ?? '';
                                 final isLaunchSelected =
-                                    _selectedLaunchApps
-                                        .contains(path);
+                                    _selectedLaunchApps.contains(path);
                                 final isBlockSelected =
-                                    _selectedBlockApps
-                                        .contains(path);
+                                    _selectedBlockApps.contains(path);
 
                                 return ListTile(
                                   title: Text(name),
                                   subtitle: Text(
                                     path,
                                     maxLines: 1,
-                                    overflow:
-                                        TextOverflow.ellipsis,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                   trailing: Row(
-                                    mainAxisSize:
-                                        MainAxisSize.min,
+                                    mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Column(
-                                        mainAxisSize:
-                                            MainAxisSize.min,
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           const Text(
                                             'Запуск',
@@ -450,18 +447,15 @@ class _ScenarioEditorDialogState extends State<_ScenarioEditorDialog> {
                                             ),
                                           ),
                                           Checkbox(
-                                            value:
-                                                isLaunchSelected,
+                                            value: isLaunchSelected,
                                             onChanged: (_) =>
-                                                _toggleLaunch(
-                                                    path),
+                                                _toggleLaunch(path),
                                           ),
                                         ],
                                       ),
                                       const SizedBox(width: 8),
                                       Column(
-                                        mainAxisSize:
-                                            MainAxisSize.min,
+                                        mainAxisSize: MainAxisSize.min,
                                         children: [
                                           const Text(
                                             'Блок',
@@ -470,11 +464,9 @@ class _ScenarioEditorDialogState extends State<_ScenarioEditorDialog> {
                                             ),
                                           ),
                                           Checkbox(
-                                            value:
-                                                isBlockSelected,
+                                            value: isBlockSelected,
                                             onChanged: (_) =>
-                                                _toggleBlock(
-                                                    path),
+                                                _toggleBlock(path),
                                           ),
                                         ],
                                       ),
