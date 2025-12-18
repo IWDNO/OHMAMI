@@ -31,6 +31,68 @@ class _ScenarioSectionState extends State<ScenarioSection> {
   final ConnectionService _conn = ConnectionService();
   final List<Scenario> _scenarios = [];
 
+  Future<void> _openScenarioActionsDialog(Scenario scenario, int index) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.edit),
+                title: const Text('Редактировать'),
+                onTap: () => Navigator.of(context).pop('edit'),
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.delete,
+                  color: Colors.red,
+                ),
+                title: const Text(
+                  'Удалить',
+                  style: TextStyle(color: Colors.red),
+                ),
+                onTap: () => Navigator.of(context).pop('delete'),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || action == null) return;
+
+    if (action == 'delete') {
+      setState(() {
+        _scenarios.removeAt(index);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Сценарий "${scenario.name}" удалён'),
+        ),
+      );
+    } else if (action == 'edit') {
+      final updatedScenario = await showDialog<Scenario>(
+        context: context,
+        builder: (context) =>
+            _ScenarioEditorDialog(initialScenario: scenario),
+      );
+
+      if (updatedScenario != null && mounted) {
+        setState(() {
+          _scenarios[index] = updatedScenario;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Сценарий "${updatedScenario.name}" обновлён'),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _runScenario(Scenario scenario) async {
     if (!scenario.hasActions) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -136,7 +198,7 @@ class _ScenarioSectionState extends State<ScenarioSection> {
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              for (final scenario in _scenarios)
+              for (int i = 0; i < _scenarios.length; i++)
                 Padding(
                   padding: const EdgeInsets.only(right: 12.0),
                   child: SizedBox(
@@ -144,8 +206,10 @@ class _ScenarioSectionState extends State<ScenarioSection> {
                     height: 120,
                     child: _GlassButton(
                       icon: Icons.playlist_play,
-                      label: scenario.name,
-                      onTap: () => _runScenario(scenario),
+                      label: _scenarios[i].name,
+                      onTap: () => _runScenario(_scenarios[i]),
+                      onLongPress: () =>
+                          _openScenarioActionsDialog(_scenarios[i], i),
                     ),
                   ),
                 ),
@@ -170,11 +234,13 @@ class _GlassButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   const _GlassButton({
     required this.icon,
     required this.label,
     required this.onTap,
+    this.onLongPress,
   });
 
   @override
@@ -187,6 +253,7 @@ class _GlassButton extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
+            onLongPress: onLongPress,
             borderRadius: BorderRadius.circular(20),
             child: Container(
               decoration: BoxDecoration(
@@ -226,7 +293,9 @@ class _GlassButton extends StatelessWidget {
 }
 
 class _ScenarioEditorDialog extends StatefulWidget {
-  const _ScenarioEditorDialog({super.key});
+  final Scenario? initialScenario;
+
+  const _ScenarioEditorDialog({super.key, this.initialScenario});
 
   @override
   State<_ScenarioEditorDialog> createState() =>
@@ -249,6 +318,12 @@ class _ScenarioEditorDialogState extends State<_ScenarioEditorDialog> {
   @override
   void initState() {
     super.initState();
+    final initial = widget.initialScenario;
+    if (initial != null) {
+      _nameController.text = initial.name;
+      _selectedLaunchApps.addAll(initial.launchAppPaths);
+      _selectedBlockApps.addAll(initial.blockPaths);
+    }
     _loadApps();
     _searchController.addListener(_applySearch);
   }
@@ -355,8 +430,9 @@ class _ScenarioEditorDialogState extends State<_ScenarioEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = widget.initialScenario != null;
     return AlertDialog(
-      title: const Text('Новый сценарий'),
+      title: Text(isEdit ? 'Редактировать сценарий' : 'Новый сценарий'),
       content: SizedBox(
         width: double.maxFinite,
         child: Column(
