@@ -5,6 +5,8 @@ VisualStudioVersion = 18.0.11109.219
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OhmamiAgent", "OhmamiAgent.csproj", "{784AACD6-8656-F8B7-7CAC-DCC2CA6A6875}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OhmamiForm", "..\OhmamiForm\OhmamiForm.csproj", "{DC166558-856A-49EC-8832-EC50EB8A6B3C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -19,6 +21,14 @@ Global
 		{784AACD6-8656-F8B7-7CAC-DCC2CA6A6875}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{784AACD6-8656-F8B7-7CAC-DCC2CA6A6875}.Release|x64.ActiveCfg = Release|x64
 		{784AACD6-8656-F8B7-7CAC-DCC2CA6A6875}.Release|x64.Build.0 = Release|x64
+		{DC166558-856A-49EC-8832-EC50EB8A6B3C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DC166558-856A-49EC-8832-EC50EB8A6B3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DC166558-856A-49EC-8832-EC50EB8A6B3C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{DC166558-856A-49EC-8832-EC50EB8A6B3C}.Debug|x64.Build.0 = Debug|Any CPU
+		{DC166558-856A-49EC-8832-EC50EB8A6B3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DC166558-856A-49EC-8832-EC50EB8A6B3C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DC166558-856A-49EC-8832-EC50EB8A6B3C}.Release|x64.ActiveCfg = Release|Any CPU
+		{DC166558-856A-49EC-8832-EC50EB8A6B3C}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
