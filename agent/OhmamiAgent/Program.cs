@@ -17,7 +17,7 @@ if (WindowsServiceHelpers.IsWindowsService())
         options.ServiceName = "OhmamiAgent";
     });
 
-    // Чтобы конфиги искались рядом с exe
+    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅ exe
     builder.Host.UseContentRoot(AppContext.BaseDirectory);
 }
 
