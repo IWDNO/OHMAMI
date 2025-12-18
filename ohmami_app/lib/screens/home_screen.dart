@@ -7,7 +7,7 @@ import 'package:ohmami_app/widgets/stream_widget.dart';
 import '../widgets/scenario_section.dart';
 
 import '../widgets/connection_widget.dart';
-import '../widgets/scenario_section.dart';
+import '../widgets/metrics_notifications_button.dart';
 import 'control_screen.dart';
 import 'system_screen.dart';
 import 'app_screen.dart';
@@ -36,7 +36,7 @@ class HomeScreen extends StatelessWidget {
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 32, vertical: 20),
+                            horizontal: 24, vertical: 16),
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(20),
@@ -45,14 +45,21 @@ class HomeScreen extends StatelessWidget {
                             width: 1.5,
                           ),
                         ),
-                        child: const Text(
-                          'OHMAMI',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 2,
-                          ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'OHMAMI',
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            const MetricsNotificationsButton(),
+                          ],
                         ),
                       ),
                     ),
