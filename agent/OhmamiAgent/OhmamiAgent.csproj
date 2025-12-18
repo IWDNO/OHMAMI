@@ -8,6 +8,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
 	<UseWindowsForms>true</UseWindowsForms>
 	<Platforms>x64</Platforms>
+	<OutputType>Exe</OutputType>
+	<UseWindowsService>true</UseWindowsService>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,6 +17,7 @@
     <PackageReference Include="Hardware.Info" Version="101.1.0" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
     <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.1" />
     <PackageReference Include="NAudio" Version="2.2.1" />
     <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="9.0.9" />
     <PackageReference Include="System.Management" Version="9.0.9" />

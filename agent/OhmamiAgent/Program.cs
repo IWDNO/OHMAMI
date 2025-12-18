@@ -1,13 +1,25 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using OhmamiAgent;
 using OhmamiAgent.Mdns;
 using OhmamiAgent.Stream;
 using OhmamiAgent.SystemControl.FileSystem;
 using OhmamiAgent.SystemControl.Media;
 using OhmamiAgent.SystemControl.Security;
+using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
+if (WindowsServiceHelpers.IsWindowsService())
+{
+    builder.Host.UseWindowsService(options =>
+    {
+        options.ServiceName = "OhmamiAgent";
+    });
+
+    // Чтобы конфиги искались рядом с exe
+    builder.Host.UseContentRoot(AppContext.BaseDirectory);
+}
 
 builder.Services.Configure<AppConfig>(builder.Configuration);
 builder.Services.AddControllers();
@@ -26,12 +38,17 @@ builder.Services.AddSingleton<ScreenShareService>();
 builder.Services.AddHostedService<ProcessBlockerHostedService>();
 
 var app = builder.Build();
+
 app.UseWebSockets();
 app.MapControllers();
 
 
-var mediaManager = app.Services.GetRequiredService<MediaManager>();
-await mediaManager.InitializeAsync();
+//var mediaManager = app.Services.GetRequiredService<MediaManager>();
+if (!WindowsServiceHelpers.IsWindowsService())
+{
+    var mediaManager = app.Services.GetRequiredService<MediaManager>();
+    await mediaManager.InitializeAsync();
+}
 
 var mdns = app.Services.GetRequiredService<MdnsPublisher>();
 await mdns.RegisterAsync(app.Configuration);
@@ -41,7 +58,9 @@ lifetime.ApplicationStopping.Register(() =>
 {
     mdns.Dispose();
     app.Services.GetRequiredService<AudioManager>().Dispose();
-    mediaManager.Dispose();
+    //mediaManager.Dispose();
 });
 
 app.Run($"http://{builder.Configuration.GetValue<string>("Host")}:{builder.Configuration.GetValue<int>("Port")}");
+
+
