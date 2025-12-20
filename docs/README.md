@@ -1,6 +1,6 @@
 ## Документация OHMAMI
 
-Установить агент для ПК - [![Latest Release](https://img.shields.io/github/v/release/IWDNO/OHMAMI?label=Release)](https://github.com/IWDNO/OHMAMI/releases/tag/v1.0.0)
+Установить агент для ПК - [https://github.com/IWDNO/OHMAMI/releases/tag/v1.0.0](https://github.com/IWDNO/OHMAMI/releases/tag/v1.0.0)
 
 Добро пожаловать в документацию проекта **OHMAMI**.  
 Здесь собраны материалы для пользователей и разработчиков: как установить систему, как ей пользоваться и как она устроена внутри.
