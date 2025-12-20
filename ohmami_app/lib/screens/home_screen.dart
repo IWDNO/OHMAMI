@@ -9,6 +9,7 @@ import '../widgets/scenario_section.dart';
 import '../widgets/connection_widget.dart';
 import '../widgets/metrics_notifications_button.dart';
 import 'control_screen.dart';
+import 'docs_screen.dart';
 import 'system_screen.dart';
 import 'app_screen.dart';
 
@@ -147,6 +148,18 @@ class HomeScreen extends StatelessWidget {
                           );
                         },
                       ),
+                      _GlassButton(
+                        icon: Icons.menu_book,
+                        label: 'Документация',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const DocsScreen(),
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                 ),
@@ -224,7 +237,7 @@ class _GlassButton extends StatelessWidget {
 }
 
 class _ScenarioEditorDialog extends StatefulWidget {
-  const _ScenarioEditorDialog({super.key});
+  const _ScenarioEditorDialog();
 
   @override
   State<_ScenarioEditorDialog> createState() =>
