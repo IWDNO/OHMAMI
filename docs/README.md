@@ -7,8 +7,7 @@
 
 - **Быстрый старт** (`getting-started/`)
   - [Обзор системы OHMAMI](getting-started/overview.md)
-  - [Установка мобильного приложения](getting-started/installation-mobile.md)
-  - [Установка агент-приложения на ПК](getting-started/installation-agent.md)
+  - [Установка OHMAMI](getting-started/installation.md)
   - [Первое подключение телефона к ПК](getting-started/first-connection.md)
 
 - **Руководство пользователя** (`user-guide/`)
