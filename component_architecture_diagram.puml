@@ -1,0 +1,64 @@
+@startuml
+!theme plain
+title Архитектура компонентов системы OHMAMI (ваша часть)
+
+node "Компьютер пользователя" as pc {
+  component "OhmamiAgent\n(.NET 8.0)" as agent {
+    database "Конфигурация" as config
+    component "HTTP API сервер\n(порт 5000)" as api
+    component "WebSocket сервер" as ws
+    component "Service Discovery\n(mDNS)" as mdns
+    
+    package "Системные компоненты" {
+      component "Менеджер файловой\nсистемы" as fs_mgr
+      component "Сервис экранного\nзеркалирования" as screen_srv
+      component "Сервис блокировки\nпроцессов" as block_srv
+      component "ACL менеджер" as acl_mgr
+    }
+  }
+
+  node "Windows OS" {
+    component "Файловая система" as fs
+    component "Процессы" as processes
+    component "Видеоадаптер\n(для захвата экрана)" as gpu
+  }
+}
+
+cloud "Локальная сеть" as lan {
+}
+
+node "Устройство пользователя\n(телефон, планшет, PC)" as device {
+  component "Flutter-приложение" as client
+}
+
+agent -[hidden]--> fs_mgr
+agent -[hidden]--> screen_srv
+agent -[hidden]--> block_srv
+
+api --> fs_mgr : "REST API\n(/api/files/*)"
+api --> screen_srv : "REST API\n(/api/stream/*)"
+api --> block_srv : "REST API\n(/api/security/*)"
+
+ws --> screen_srv : "Видео поток\n(через Agora)"
+ws --> agent : "Уведомления\nо событиях"
+
+fs_mgr --> fs : "Чтение/запись файлов\nи запуск приложений"
+acl_mgr --> fs : "Изменение прав доступа\n(ACL)"
+block_srv --> processes : "Отслеживание\nзапуска процессов"
+acl_mgr --> processes : "Блокировка процессов\nчерез ACL"
+screen_srv --> gpu : "Захват экрана\n(через Agora SDK)"
+
+mdns --> lan : "Обнаружение сервиса\n_ohmami._tcp"
+
+client --> lan : "Поиск сервиса\nчерез mDNS"
+lan --> mdns
+client --> api : "HTTP/HTTPS"
+client --> ws : "WebSocket\nсоединение"
+
+note top of agent : "Центральный компонент системы\nОбрабатывает все запросы от клиента\nИнтегрируется с Windows API"
+
+note right of block_srv : "Отслеживает попытки запуска\nзаблокированных приложений\nи автоматически прекращает их"
+
+note left of screen_srv : "Использует Agora SDK\nдля захвата и трансляции\nвидео экрана в реальном времени"
+
+@enduml

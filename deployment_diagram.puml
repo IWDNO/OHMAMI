@@ -1,0 +1,66 @@
+@startuml
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam component {
+  BackgroundColor #F0F8FF
+  BorderColor #4682B4
+  FontSize 12
+}
+
+skinparam node {
+  BackgroundColor #E6F3FF
+  BorderColor #0066CC
+  FontSize 12
+}
+
+skinparam cloud {
+  BackgroundColor #FFFACD
+  BorderColor #FFA500
+  FontSize 12
+}
+
+title Архитектура проекта OHMAMI
+
+node "Компьютер пользователя" as pc {
+  component "OhmamiAgent\n(.NET 8.0 Windows Service)" as agent {
+    database "Конфигурация\n(appsettings.json)" as config
+    artifact "Модуль метрик\n(CPU, GPU, Memory)" as metrics
+    artifact "WebSocket сервер\n(порт 5000)" as ws_server
+    artifact "mDNS сервис\n(_ohmami._tcp)" as mdns
+    artifact "Менеджер медиа" as media
+    artifact "Менеджер файловой системы" as fs
+    artifact "Менеджер безопасности" as sec
+  }
+
+  component "Windows Forms\n(OhmamiForm)" as form
+}
+
+cloud "Локальная сеть" as network {
+}
+
+node "Мобильное/десктопное устройство" as client {
+  component "Flutter-приложение\n(ohmami_app)" as flutter_app {
+    artifact "HTTP клиент" as http_client
+    artifact "WebSocket клиент" as ws_client
+    artifact "Интерфейс пользователя" as ui
+  }
+}
+
+agent --> network : "Обнаружение\nчерез mDNS"
+flutter_app --> network : "Подключение\nпо IP/порт" 
+network --> agent : "HTTP запросы\nWebSocket соединения"
+
+http_client --> ws_server : "GET /api/\nWebSocket подключение"
+ws_client --> ws_server : "Двунаправленная\nпередача данных"
+
+config ..> agent : "Конфигурация"
+metrics ..> agent : "Сбор метрик"
+media ..> agent : "Управление медиа"
+fs ..> agent : "Файловая система"
+sec ..> agent : "Безопасность"
+
+note top of agent : "Запускается как Windows Service\nСобирает системную информацию\nПредоставляет REST и WebSocket API"
+
+note bottom of flutter_app : "Пользовательский интерфейс\nдля мониторинга и управления\nсистемными ресурсами"
+
+@enduml

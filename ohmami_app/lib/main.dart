@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:ohmami_app/screens/app_screen.dart';
 import 'package:ohmami_app/screens/docs_screen.dart';
+import 'package:ohmami_app/widgets/stream_widget.dart';
 import 'services/connection_service.dart';
 import 'package:ohmami_app/screens/system_screen.dart';
-import 'package:ohmami_app/widgets/stream_widget.dart';
+import 'package:ohmami_app/screens/blocked_sites_screen.dart';
 
 import './widgets/connection_widget.dart';
 import './screens/control_screen.dart';
@@ -62,6 +63,7 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         '/apps': (context) => const AppScreen(),
         '/stream':(context) => const StreamWidget(),
         '/docs': (context) => const DocsScreen(),
+        '/blocked-sites': (context) => const BlockedSitesScreen(),
       },
     );
   }

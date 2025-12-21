@@ -1,0 +1,117 @@
+@startuml
+!theme plain
+title Системная диаграмма взаимодействия компонентов OHMAMI
+
+actor "Пользователь\n(удаленное устройство)" as user
+participant "Flutter-приложение" as flutter_app
+participant "WebSocket/HTTP\nсоединение" as network
+participant "OhmamiAgent\n(веб-сервер)" as agent
+participant "Сервис экранного\nзеркалирования" as screen_service
+participant "Менеджер файловой\nсистемы" as fs_manager
+participant "Сервис блокировки\nпроцессов" as blocker_service
+participant "ACL менеджер\n(уровень ОС)" as acl_manager
+participant "Система (Windows)" as os
+
+user -> flutter_app: Запуск приложения
+activate flutter_app
+
+flutter_app -> network: Поиск сервиса через mDNS
+activate network
+network -> agent: Обнаружение OhmamiAgent в локальной сети
+deactivate network
+
+flutter_app -> network: Установка соединения (HTTP/WS)
+activate network
+network -> agent: Подключение к API (порт 5000)
+activate agent
+deactivate network
+
+=== Файловая система ===
+user -> flutter_app: Запрос списка файлов
+activate flutter_app
+flutter_app -> agent: GET /api/files/list
+activate agent
+agent -> fs_manager: Получить список файлов
+activate fs_manager
+fs_manager -> os: Чтение файловой системы
+deactivate fs_manager
+agent -> flutter_app: Ответ со списком файлов
+deactivate agent
+flutter_app -> user: Показ списка файлов
+deactivate flutter_app
+
+user -> flutter_app: Выбор файла для открытия
+activate flutter_app
+flutter_app -> agent: POST /api/apps/open
+activate agent
+agent -> fs_manager: Открыть приложение
+activate fs_manager
+fs_manager -> os: Запуск процесса
+activate os
+deactivate os
+deactivate fs_manager
+deactivate agent
+flutter_app -> user: Файл открыт
+deactivate flutter_app
+
+=== Экранные зеркала ===
+user -> flutter_app: Запрос начала трансляции экрана
+activate flutter_app
+flutter_app -> agent: POST /api/stream/start
+activate agent
+agent -> screen_service: Запуск экранного зеркала
+activate screen_service
+screen_service -> os: Захват видеоэкрана (Agora SDK)
+activate os
+note right: Используется Agora SDK\nдля захвата и трансляции экрана
+deactivate os
+screen_service -> network: Трансляция экрана (RTC)
+activate network
+network -> flutter_app: Получение потока экрана
+deactivate network
+flutter_app -> user: Отображение экрана
+deactivate flutter_app
+deactivate screen_service
+deactivate agent
+
+=== Блокировка приложений ===
+user -> flutter_app: Блокировать приложение
+activate flutter_app
+flutter_app -> agent: POST /api/security/block/app
+activate agent
+agent -> acl_manager: Блокировать исполняемый файл
+activate acl_manager
+acl_manager -> os: Изменение ACL для файла
+activate os
+os -> acl_manager: ACL изменены
+deactivate os
+deactivate acl_manager
+agent -> flutter_app: Подтверждение блокировки
+deactivate agent
+flutter_app -> user: Приложение заблокировано
+deactivate flutter_app
+
+...Мониторинг запуска процессов...
+os -> blocker_service: Запуск нового процесса
+activate blocker_service
+blocker_service -> blocker_service: Проверка в списке блокировки
+alt процесс в списке блокировки
+    blocker_service -> os: Прервать процесс
+    activate os
+    os -> blocker_service: Процесс прерван
+    deactivate os
+    blocker_service -> user: Уведомление о блокировке
+else процесс не заблокирован
+    blocker_service -> os: Разрешить выполнение
+    activate os
+    os -> blocker_service: Процесс запущен
+    deactivate os
+end
+deactivate blocker_service
+
+deactivate agent
+deactivate network
+
+note bottom: Система обеспечивает удаленный доступ\nк файловой системе, трансляцию экрана,\nблокировку приложений и обнаружение\nв локальной сети через mDNS
+
+@enduml

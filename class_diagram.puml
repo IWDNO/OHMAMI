@@ -1,0 +1,140 @@
+@startuml
+!theme plain
+title Диаграмма классов системы OHMAMI (ваша часть)
+
+package "SystemControl.FileSystem" {
+  class FileSystemManager {
+    -string[] _blacklist
+    -bool _blacklistForRead
+    +IEnumerable<DriveInfoEntry> ListDrives()
+    +IEnumerable<Entry> List(string? path)
+    +void CreateDirectory(string path)
+    +void DeleteFile(string path)
+    +void DeleteDirectory(string path, bool recursive)
+    +string NormalizeForRead(string path)
+    +string PrepareUploadPath(string dest, string? fileNameIfDir)
+    +Dictionary<string, string> GetSpecialFolders()
+    +class Entry
+    +class DriveInfoEntry
+  }
+
+  class ApplicationManager {
+    -string[] _roots
+    +IEnumerable<AppInfo> ListApps()
+    +IEnumerable<AppInfo> Search(string query)
+    +void Launch(string path)
+    +class AppInfo
+  }
+
+  class PathHelper {
+    +static string NormalizeSafe(string path)
+    +static string NormalizeRequired(string path)
+    +static bool IsSameOrUnder(string candidate, string prefix)
+    +static bool EndsWithDirectorySeparator(string path)
+    +static bool IsDriveReady(DriveInfo drive)
+  }
+
+  class ShortcutResolver {
+    +static string ResolveTargetPath(string shortcutPath)
+  }
+
+  ApplicationManager ..> FileSystemManager : uses
+  ApplicationManager ..> ShortcutResolver : uses
+  FileSystemManager ..> PathHelper : uses
+  FileSystemManager ..> ShortcutResolver : uses
+}
+
+package "Stream" {
+  class ScreenShareService {
+    -string _appId
+    -AutoScreenShare? _activeStream
+    -int _streamsCount
+    -string _channelId
+    -object _lock
+    +string Start()
+    +void Stop(string channelId)
+  }
+
+  class AutoScreenShare {
+    -string log_file_path
+    -string app_id_
+    -string channel_id_
+    -bool joined_
+    -bool inited_
+    -RtcConnection screenshare_connection_
+    +void Run()
+    +void Stop()
+    +OnJoinChannelSuccess(RtcConnection, int)
+    +OnLeaveChannel(RtcConnection, RtcStats)
+    +void StartScreenSharing()
+    +void StopScreenSharing()
+    +int Init(string appId)
+    +int UnInit()
+    +int JoinChannel(string channelId)
+    +int LeaveChannel()
+  }
+
+  interface IEngine {
+  }
+
+  AutoScreenShare --|> IEngine
+  ScreenShareService ..> AutoScreenShare : creates and manages
+}
+
+package "SystemControl.Security" {
+  class AclManager {
+    +static void BlockExe(string exePath)
+    +static void BlockPath(string path)
+    +static void Unblock(string path)
+    -static void ApplyFileDeny(string filePath, FileSystemRights rights)
+    -static void ApplyDirectoryDeny(string dirPath, FileSystemRights rights)
+    -static void RemoveOurDenyRules(FileSystemSecurity acl)
+    -static SecurityIdentifier GetCurrentUserSid()
+  }
+
+  class BlocklistStore {
+    -string _filePath
+    -object _lock
+    -HashSet<string> _blocked
+    +IReadOnlyCollection<string> List()
+    +bool Add(string normalizedPath)
+    +bool Remove(string normalizedPath)
+    -void Load()
+    -void Save()
+  }
+
+  class ProcessBlockerHostedService {
+    -BlocklistStore _store
+    -ManagementEventWatcher? _watcher
+    -bool _disposed
+    +Task StartAsync(CancellationToken cancellationToken)
+    +Task StopAsync(CancellationToken cancellationToken)
+    +void Dispose()
+    -void OnProcessStarted(object sender, EventArrivedEventArgs e)
+  }
+
+  ProcessBlockerHostedService ..> BlocklistStore : uses
+  ProcessBlockerHostedService ..> AclManager : uses
+}
+
+package "Mdns" {
+  class MdnsPublisher {
+    -ILogger<MdnsPublisher> logger
+    -IConfiguration config
+    -MulticastService? multicast
+    -ServiceDiscovery? sd
+    -ServiceProfile? profile
+    +Task RegisterAsync(IConfiguration configuration)
+    +void Dispose()
+  }
+
+  MdnsPublisher ..> "Makaretu.Dns" : uses <<library>>
+}
+
+' External dependencies
+note top of AutoScreenShare : Uses Agora SDK\nfor screen capture\nand streaming
+note top of AclManager : Uses Windows ACL\nfor file permissions\nand process blocking
+note right of ProcessBlockerHostedService : Monitors process\ncreation using\nWMI events
+note bottom of MdnsPublisher : Provides service\ndiscovery in\nlocal network\nusing mDNS
+
+@enduml
