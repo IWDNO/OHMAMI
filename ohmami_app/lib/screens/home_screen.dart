@@ -11,6 +11,7 @@ import '../widgets/metrics_notifications_button.dart';
 import 'control_screen.dart';
 import 'system_screen.dart';
 import 'app_screen.dart';
+import 'blocked_sites_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -143,6 +144,18 @@ class HomeScreen extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (context) => const StreamWidget(),
+                            ),
+                          );
+                        },
+                      ),
+                      _GlassButton(
+                        icon: Icons.security,
+                        label: 'Блокировка сайтов',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const BlockedSitesScreen(),
                             ),
                           );
                         },
