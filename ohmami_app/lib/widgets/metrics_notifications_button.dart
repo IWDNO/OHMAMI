@@ -26,6 +26,7 @@ class _MetricsNotificationsButtonState
 
   /// Чтобы не дублировать уведомления при постоянном превышении порога.
   bool _cpuHigh = false;
+  bool _cpuTempHigh = false;
   bool _memHigh = false;
   bool _gpuHigh = false;
   bool _batteryLow = false;
@@ -65,6 +66,7 @@ class _MetricsNotificationsButtonState
     final bat = _section(m, 'battery');
 
     final cpuUsage = _toPercent(cpu['usage_percent']);
+    final cpuTemp = _safeDouble(cpu['temperature_c']);
     final memUsage = _toPercent(
       mem['usage_percent'] ??
           (100 *
@@ -83,6 +85,12 @@ class _MetricsNotificationsButtonState
     final cpuHighNow = cpuUsage > 50;
     if (cpuHighNow && !_cpuHigh) {
       newAlerts.add('Высокая загрузка CPU: ${cpuUsage.toStringAsFixed(1)}%');
+    }
+
+    // Проверка перегрева процессора (>= 90°C)
+    final cpuTempHighNow = cpuTemp > 0 && cpuTemp >= 90;
+    if (cpuTempHighNow && !_cpuTempHigh) {
+      newAlerts.add('⚠️ Перегрев процессора: ${cpuTemp.toStringAsFixed(1)}°C');
     }
 
     final memHighNow = memUsage > 80;
@@ -104,6 +112,7 @@ class _MetricsNotificationsButtonState
     if (newAlerts.isEmpty) {
       // обновляем флаги, но без новых уведомлений
       _cpuHigh = cpuHighNow;
+      _cpuTempHigh = cpuTempHighNow;
       _memHigh = memHighNow;
       _gpuHigh = gpuHighNow;
       _batteryLow = batteryLowNow;
@@ -112,6 +121,7 @@ class _MetricsNotificationsButtonState
 
     setState(() {
       _cpuHigh = cpuHighNow;
+      _cpuTempHigh = cpuTempHighNow;
       _memHigh = memHighNow;
       _gpuHigh = gpuHighNow;
       _batteryLow = batteryLowNow;
