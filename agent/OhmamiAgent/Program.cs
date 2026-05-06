@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using OhmamiAgent;
 using OhmamiAgent.Mdns;
+using OhmamiAgent.Remote;
 using OhmamiAgent.Stream;
 using OhmamiAgent.SystemControl.FileSystem;
 using OhmamiAgent.SystemControl.Media;
@@ -22,7 +23,9 @@ if (WindowsServiceHelpers.IsWindowsService())
 }
 
 builder.Services.Configure<AppConfig>(builder.Configuration);
+builder.Services.Configure<RemoteRelayOptions>(builder.Configuration.GetSection("RemoteRelay"));
 builder.Services.AddControllers();
+builder.Services.AddHttpClient();
 
 
 builder.Services.AddSingleton<FileSystemManager>();
@@ -36,6 +39,7 @@ builder.Services.AddSingleton<MdnsPublisher>();
 builder.Services.AddSingleton<ScreenShareService>();
 //builder.Services.AddHostedService<MetricsHostedService>();
 builder.Services.AddHostedService<ProcessBlockerHostedService>();
+builder.Services.AddHostedService<RemoteRelayHostedService>();
 
 var app = builder.Build();
 

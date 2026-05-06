@@ -18,11 +18,13 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
   bool get wantKeepAlive => true;
 
   final TextEditingController _ipController = TextEditingController(text: "http://192.168.1.10:8000");
+  final TextEditingController _agentIdController = TextEditingController();
   final List<String> _log = [];
   
   final ConnectionService _connectionService = ConnectionService();
   StreamSubscription? _wsSubscription;
   bool _isConnected = false;
+  bool _useRemoteRelay = false;
 
   @override
   void initState() {
@@ -61,8 +63,10 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
 
   void _ping() async {    
     try {
-      _connectionService.setApiUrl(_ipController.text.trim());
-      HomeWidget.saveWidgetData<String>('base_url', _ipController.text.trim());
+      _configureConnection();
+      if (!_useRemoteRelay) {
+        HomeWidget.saveWidgetData<String>('base_url', _ipController.text.trim());
+      }
       final isConnected = await _connectionService.ping();
       setState(() {
         _isConnected = isConnected;
@@ -78,7 +82,7 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
   }
 
   void _connectWs() {
-    _connectionService.setApiUrl(_ipController.text.trim());
+    _configureConnection();
     _connectionService.connectWs();
     setState(() {
       _isConnected = _connectionService.isWebSocketConnected;
@@ -97,10 +101,23 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
     }
   }
 
+  void _configureConnection() {
+    if (_useRemoteRelay) {
+      _connectionService.setRemoteRelay(
+        relayUrl: _ipController.text.trim(),
+        agentId: _agentIdController.text.trim(),
+      );
+    } else {
+      _connectionService.setApiUrl(_ipController.text.trim());
+    }
+  }
+
   @override
   void dispose() {
-    super.dispose();
     _wsSubscription?.cancel();
+    _ipController.dispose();
+    _agentIdController.dispose();
+    super.dispose();
   }
 
   @override
@@ -145,7 +162,28 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
                   ),
                 ),
                 const SizedBox(height: 20),
-                
+                SwitchListTile(
+                  value: _useRemoteRelay,
+                  onChanged: (value) {
+                    setState(() {
+                      _useRemoteRelay = value;
+                      _ipController.text = value
+                          ? "http://YOUR_VPS_IP:8080"
+                          : "http://192.168.1.10:8000";
+                    });
+                  },
+                  title: const Text(
+                    "Remote relay",
+                    style: TextStyle(color: Colors.white),
+                  ),
+                  subtitle: Text(
+                    _useRemoteRelay ? "HTTP/WS through VPS" : "Local mDNS/direct LAN",
+                    style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                  ),
+                  activeColor: Colors.white,
+                  contentPadding: EdgeInsets.zero,
+                ),
+
                 // Поле ввода с glassmorphism
                 ClipRRect(
                   borderRadius: BorderRadius.circular(15),
@@ -164,7 +202,7 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
                         controller: _ipController,
                         style: const TextStyle(color: Colors.white),
                         decoration: InputDecoration(
-                          labelText: "Agent base URL (http)",
+                          labelText: _useRemoteRelay ? "Relay URL (http)" : "Agent base URL (http)",
                           labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.all(16),
@@ -173,6 +211,35 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
                     ),
                   ),
                 ),
+                if (_useRemoteRelay) ...[
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(15),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: TextField(
+                          controller: _agentIdController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            labelText: "Agent ID",
+                            labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.all(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 
                 // Кнопки с glassmorphism

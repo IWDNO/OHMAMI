@@ -9,12 +9,19 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 import 'agent_discovery.dart';
 
+enum ConnectionMode {
+  local,
+  remote,
+}
+
 class ConnectionService extends ChangeNotifier {
   static final ConnectionService _instance = ConnectionService._internal();
   factory ConnectionService() => _instance;
   ConnectionService._internal();
 
   String? apiUrl;
+  ConnectionMode connectionMode = ConnectionMode.local;
+  String? remoteAgentId;
   bool isApiAvailable = false;
   bool isSearching = false;
   WebSocketChannel? webSocketChannel;
@@ -28,6 +35,18 @@ class ConnectionService extends ChangeNotifier {
 
   void setApiUrl(String url) {
     apiUrl = url;
+    connectionMode = ConnectionMode.local;
+    remoteAgentId = null;
+    notifyListeners();
+  }
+
+  void setRemoteRelay({
+    required String relayUrl,
+    required String agentId,
+  }) {
+    apiUrl = relayUrl;
+    remoteAgentId = agentId;
+    connectionMode = ConnectionMode.remote;
     notifyListeners();
   }
 
@@ -51,9 +70,11 @@ class ConnectionService extends ChangeNotifier {
     if (apiUrl == null) return false;
     
     try {
-      final response = await http.get(
-        Uri.parse('$apiUrl/ping'),
-      ).timeout(const Duration(seconds: 3));
+      final response = connectionMode == ConnectionMode.remote
+          ? await request('GET', '/ping').timeout(const Duration(seconds: 5))
+          : await http.get(
+              Uri.parse('$apiUrl/ping'),
+            ).timeout(const Duration(seconds: 3));
       
       isApiAvailable = response.statusCode == 200;
       notifyListeners();
@@ -73,6 +94,28 @@ class ConnectionService extends ChangeNotifier {
   }) async {
     if (apiUrl == null) {
       throw Exception('Base URL not set');
+    }
+
+    if (connectionMode == ConnectionMode.remote) {
+      final agentId = remoteAgentId;
+      if (agentId == null || agentId.isEmpty) {
+        throw Exception('Remote agent ID not set');
+      }
+
+      final encodedAgentId = Uri.encodeComponent(agentId);
+      final uri = Uri.parse('$apiUrl/agents/$encodedAgentId/proxy');
+      final remoteBody = <String, Object?>{
+        'method': method.toUpperCase(),
+        'endpoint': endpoint,
+        if (headers != null) 'headers': headers,
+        if (body != null) 'body': _encodeRemoteBody(body),
+      };
+
+      return await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(remoteBody),
+      );
     }
 
     final uri = Uri.parse('$apiUrl$endpoint');
@@ -98,6 +141,10 @@ class ConnectionService extends ChangeNotifier {
   }) async {
     if (apiUrl == null) {
       throw Exception('Base URL not set');
+    }
+
+    if (connectionMode == ConnectionMode.remote) {
+      throw Exception('Remote file upload is not implemented yet');
     }
 
     final uri = Uri.parse('$apiUrl$endpoint');
@@ -128,7 +175,24 @@ class ConnectionService extends ChangeNotifier {
 
   String? getWebSocketUrl() {
     if (apiUrl == null) return null;
+    if (connectionMode == ConnectionMode.remote) {
+      final agentId = remoteAgentId;
+      if (agentId == null || agentId.isEmpty) return null;
+      final encodedAgentId = Uri.encodeComponent(agentId);
+      return '${apiUrl!.replaceFirst('http', 'ws')}/clients/ws?agentId=$encodedAgentId';
+    }
     return '${apiUrl!.replaceFirst('http', 'ws')}/ws';
+  }
+
+  Object? _encodeRemoteBody(Object body) {
+    if (body is String) {
+      try {
+        return json.decode(body);
+      } catch (_) {
+        return body;
+      }
+    }
+    return body;
   }
   
   Future<void> connectWs() async {        

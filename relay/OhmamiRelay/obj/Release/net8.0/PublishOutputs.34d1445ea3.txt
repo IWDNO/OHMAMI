@@ -1,0 +1,6 @@
+C:\Users\Pavel\code\OHMAMI\publish-relay\OhmamiRelay.exe
+C:\Users\Pavel\code\OHMAMI\publish-relay\appsettings.json
+C:\Users\Pavel\code\OHMAMI\publish-relay\OhmamiRelay.dll
+C:\Users\Pavel\code\OHMAMI\publish-relay\OhmamiRelay.deps.json
+C:\Users\Pavel\code\OHMAMI\publish-relay\OhmamiRelay.runtimeconfig.json
+C:\Users\Pavel\code\OHMAMI\publish-relay\OhmamiRelay.pdb

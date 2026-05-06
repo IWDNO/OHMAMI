@@ -1,0 +1,23 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "OhmamiRelay/1.0.0": {
+        "runtime": {
+          "OhmamiRelay.dll": {}
+        }
+      }
+    }
+  },
+  "libraries": {
+    "OhmamiRelay/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}
