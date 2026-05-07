@@ -7,6 +7,7 @@ using OhmamiAgent.Stream;
 using OhmamiAgent.SystemControl.FileSystem;
 using OhmamiAgent.SystemControl.Media;
 using OhmamiAgent.SystemControl.Security;
+using OhmamiAgent.Tray;
 using System.Runtime.InteropServices;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -37,9 +38,26 @@ builder.Services.AddSingleton<HostsManager>();
 builder.Services.AddSingleton<OhmamiAgent.Ws.WebSocketManager>();
 builder.Services.AddSingleton<MdnsPublisher>();
 builder.Services.AddSingleton<ScreenShareService>();
+builder.Services.AddSingleton<RemotePairingService>();
 //builder.Services.AddHostedService<MetricsHostedService>();
 builder.Services.AddHostedService<ProcessBlockerHostedService>();
 builder.Services.AddHostedService<RemoteRelayHostedService>();
+
+if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && !WindowsServiceHelpers.IsWindowsService())
+{
+    builder.Services.AddHostedService<TrayIconHostedService>();
+}
+
+builder.Services.AddOptions<RemoteRelayOptions>().PostConfigure<RemoteAgentIdStore>((options, store) =>
+{
+    if (!options.Enabled || !string.IsNullOrWhiteSpace(options.AgentId))
+    {
+        return;
+    }
+
+    options.AgentId = store.GetOrCreate();
+});
+builder.Services.AddSingleton<RemoteAgentIdStore>();
 
 var app = builder.Build();
 
@@ -66,5 +84,4 @@ lifetime.ApplicationStopping.Register(() =>
 });
 
 app.Run($"http://{builder.Configuration.GetValue<string>("Host")}:{builder.Configuration.GetValue<int>("Port")}");
-
 

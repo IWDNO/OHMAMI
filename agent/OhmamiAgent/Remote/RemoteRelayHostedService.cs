@@ -66,7 +66,7 @@ namespace OhmamiAgent.Remote
             {
                 Scheme = wsScheme,
                 Path = "/agent/ws",
-                Query = $"agentId={Uri.EscapeDataString(agentId)}&token={Uri.EscapeDataString(_options.AgentToken)}"
+                Query = $"agentId={Uri.EscapeDataString(agentId)}&token={Uri.EscapeDataString(_options.AgentToken)}&name={Uri.EscapeDataString(Environment.MachineName)}"
             }.Uri;
 
             using var socket = new ClientWebSocket();

@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:ui';
-import 'package:flutter/material.dart';
-import 'package:home_widget/home_widget.dart';
-import '../services/connection_service.dart';
-import '../screens/home_screen.dart';
 
+import 'package:home_widget/home_widget.dart';
+import 'package:flutter/material.dart';
+
+import '../screens/home_screen.dart';
+import '../services/connection_service.dart';
 
 class ConnectionWidget extends StatefulWidget {
   const ConnectionWidget({super.key});
@@ -13,83 +14,94 @@ class ConnectionWidget extends StatefulWidget {
   State<ConnectionWidget> createState() => _ConnectionWidgetState();
 }
 
-class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepAliveClientMixin {
+class _ConnectionWidgetState extends State<ConnectionWidget>
+    with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
 
-  final TextEditingController _ipController = TextEditingController(text: "http://192.168.1.10:8000");
-  final TextEditingController _agentIdController = TextEditingController();
+  final TextEditingController _ipController =
+      TextEditingController(text: 'http://192.168.1.10:8000');
+  final TextEditingController _pairCodeController = TextEditingController();
   final List<String> _log = [];
-  
+  final List<Map<String, dynamic>> _remoteAgents = [];
+
   final ConnectionService _connectionService = ConnectionService();
   StreamSubscription? _wsSubscription;
-  bool _isConnected = false;
   bool _useRemoteRelay = false;
+  bool _isLoadingRemoteAgents = false;
+  String? _selectedRemoteAgentId;
 
   @override
   void initState() {
     super.initState();
-    // Автоматический поиск агентов при запуске приложения
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchAgents();
+      _restoreRemoteSelection();
+    });
+  }
+
+  String get _relayUrl => ConnectionService.defaultRelayUrl;
+
+  Future<void> _restoreRemoteSelection() async {
+    final selection = await _connectionService.loadRemoteSelection();
+    if (!mounted) return;
+
+    setState(() {
+      final agentId = selection['agentId'];
+      if (agentId != null && agentId.isNotEmpty) {
+        _selectedRemoteAgentId = agentId;
+      }
     });
   }
 
   Future<void> _searchAgents() async {
     setState(() {
-      _log.insert(0, "Searching for agents...");
+      _log.insert(0, 'Searching local agents...');
     });
 
     try {
       final agents = await _connectionService.searchAgents();
       setState(() {
         if (agents.isEmpty) {
-          _log.insert(0, "No agents found");
+          _log.insert(0, 'No local agents found');
         } else {
           _ipController.text = agents.first;
-          _log.insert(0, "Found ${agents.length} agent(s):");
-          for (var agent in agents) {
-            _log.insert(0, "  - $agent");
-          }
-          _log.insert(0, "Selected agent: ${agents.first}");
+          _log.insert(0, 'Found ${agents.length} local agent(s)');
+          _log.insert(0, 'Selected local agent: ${agents.first}');
         }
       });
     } catch (e) {
       setState(() {
-        _log.insert(0, "Error searching for agents: $e");
+        _log.insert(0, 'Local search error: $e');
       });
     }
   }
 
-  void _ping() async {    
+  void _ping() async {
     try {
       _configureConnection();
       if (!_useRemoteRelay) {
-        HomeWidget.saveWidgetData<String>('base_url', _ipController.text.trim());
+        await HomeWidget.saveWidgetData<String>('base_url', _ipController.text.trim());
       }
+
       final isConnected = await _connectionService.ping();
       setState(() {
-        _isConnected = isConnected;
-        _log.insert(0, "PING: ${isConnected ? 'Connected' : 'Failed'}");
+        _log.insert(0, 'PING: ${isConnected ? 'Connected' : 'Failed'}');
       });
-      
     } catch (e) {
       setState(() {
-        _isConnected = false;
-        _log.insert(0, "PING ERROR: $e");
+        _log.insert(0, 'PING ERROR: $e');
       });
     }
   }
 
-  void _connectWs() {
+  void _connectWs() async {
     _configureConnection();
-    _connectionService.connectWs();
+    await _connectionService.connectWs();
     setState(() {
-      _isConnected = _connectionService.isWebSocketConnected;
-      _log.insert(0, 'ws is ${_connectionService.isWebSocketConnected}');
+      _log.insert(0, 'WS connected: ${_connectionService.isWebSocketConnected}');
     });
-    
-    // Переход на главный экран после успешного подключения WebSocket
+
     if (_connectionService.isWebSocketConnected && mounted) {
       Future.delayed(const Duration(milliseconds: 500), () {
         if (mounted) {
@@ -103,12 +115,110 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
 
   void _configureConnection() {
     if (_useRemoteRelay) {
+      final agentId = _selectedRemoteAgentId?.trim() ?? '';
+      if (agentId.isEmpty) {
+        throw Exception('Select a PC first');
+      }
       _connectionService.setRemoteRelay(
-        relayUrl: _ipController.text.trim(),
-        agentId: _agentIdController.text.trim(),
+        relayUrl: _relayUrl,
+        agentId: agentId,
       );
     } else {
       _connectionService.setApiUrl(_ipController.text.trim());
+    }
+  }
+
+  Future<void> _connectToRemoteAgent(Map<String, dynamic> agent) async {
+    final agentId = agent['agentId']?.toString() ?? '';
+    final online = agent['isOnline'] == true;
+    if (agentId.trim().isEmpty) return;
+    if (!online) {
+      setState(() {
+        _log.insert(0, 'PC is offline: $agentId');
+      });
+      return;
+    }
+
+    setState(() {
+      _selectedRemoteAgentId = agentId;
+      _log.insert(0, 'Connecting to ${agent['name'] ?? agentId} ($agentId)...');
+    });
+
+    await _connectionService.saveRemoteSelection(
+      relayUrl: _relayUrl,
+      agentId: agentId,
+    );
+
+    _connectionService.setRemoteRelay(relayUrl: _relayUrl, agentId: agentId);
+    await _connectionService.connectWs();
+
+    setState(() {
+      _log.insert(0, 'WS connected: ${_connectionService.isWebSocketConnected}');
+    });
+
+    if (_connectionService.isWebSocketConnected && mounted) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const HomeScreen()),
+      );
+    }
+  }
+
+  Future<void> _pairRemoteAgent() async {
+    try {
+      final code = _pairCodeController.text.trim();
+      final agent = await _connectionService.pairRemoteAgent(
+        relayUrl: _relayUrl,
+        code: code,
+      );
+
+      setState(() {
+        _selectedRemoteAgentId = agent['agentId']?.toString();
+        _log.insert(0, 'Paired with ${agent['name']} (${agent['agentId']})');
+      });
+
+      await _connectionService.saveRemoteSelection(
+        relayUrl: _relayUrl,
+        agentId: _selectedRemoteAgentId?.trim() ?? '',
+      );
+
+      await _loadRemoteAgents();
+    } catch (e) {
+      setState(() {
+        _log.insert(0, 'PAIR ERROR: $e');
+      });
+    }
+  }
+
+  Future<void> _loadRemoteAgents() async {
+    if (_isLoadingRemoteAgents) return;
+    setState(() {
+      _isLoadingRemoteAgents = true;
+      _log.insert(0, 'Loading my PCs...');
+    });
+    try {
+      final agents = await _connectionService.fetchRemoteAgents(_relayUrl);
+      setState(() {
+        _remoteAgents
+          ..clear()
+          ..addAll(agents);
+        _log.insert(0, 'Loaded ${agents.length} paired PC(s)');
+        if ((_selectedRemoteAgentId == null || _selectedRemoteAgentId!.trim().isEmpty) &&
+            agents.isNotEmpty) {
+          _selectedRemoteAgentId = agents.first['agentId']?.toString();
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _log.insert(0, 'LOAD PCS ERROR: $e');
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingRemoteAgents = false;
+        });
+      }
     }
   }
 
@@ -116,7 +226,7 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
   void dispose() {
     _wsSubscription?.cancel();
     _ipController.dispose();
-    _agentIdController.dispose();
+    _pairCodeController.dispose();
     super.dispose();
   }
 
@@ -125,15 +235,13 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
     super.build(context);
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          color: Colors.black,
-        ),
+        decoration: const BoxDecoration(color: Colors.black),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              children: [
-                // Заголовок с glassmorphism
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
                 Center(
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
@@ -150,7 +258,7 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
                           ),
                         ),
                         child: const Text(
-                          'Подключение',
+                          'Connection',
                           style: TextStyle(
                             fontSize: 28,
                             fontWeight: FontWeight.bold,
@@ -164,56 +272,155 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
                 const SizedBox(height: 20),
                 SwitchListTile(
                   value: _useRemoteRelay,
-                  onChanged: (value) {
+                  onChanged: (value) async {
                     setState(() {
                       _useRemoteRelay = value;
-                      _ipController.text = value
-                          ? "http://YOUR_VPS_IP:8080"
-                          : "http://192.168.1.10:8000";
+                      if (!value) {
+                        _remoteAgents.clear();
+                        _selectedRemoteAgentId = null;
+                      }
                     });
+                    if (value) {
+                      await _loadRemoteAgents();
+                    }
                   },
                   title: const Text(
-                    "Remote relay",
+                    'Remote relay',
                     style: TextStyle(color: Colors.white),
                   ),
                   subtitle: Text(
-                    _useRemoteRelay ? "HTTP/WS through VPS" : "Local mDNS/direct LAN",
+                    _useRemoteRelay ? 'HTTP/WS through VPS' : 'Local mDNS/direct LAN',
                     style: TextStyle(color: Colors.white.withOpacity(0.7)),
                   ),
                   activeColor: Colors.white,
                   contentPadding: EdgeInsets.zero,
                 ),
-
-                // Поле ввода с glassmorphism
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(15),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
+                if (_useRemoteRelay) ...[
+                  const SizedBox(height: 12),
+                  _buildInput(
+                    controller: _pairCodeController,
+                    label: 'Pairing code',
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _GlassButton(
+                      label: 'Pair with code',
+                      onPressed: _pairRemoteAgent,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (!_useRemoteRelay) ...[
+                  _buildInput(
+                    controller: _ipController,
+                    label: 'Agent base URL (http)',
+                  ),
+                ],
+                const SizedBox(height: 16),
+                if (_useRemoteRelay) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: _GlassButton(
+                      label: _isLoadingRemoteAgents ? 'Loading...' : 'Refresh my PCs',
+                      onPressed: _isLoadingRemoteAgents ? null : _loadRemoteAgents,
+                      isLoading: _isLoadingRemoteAgents,
+                    ),
+                  ),
+                  if (_remoteAgents.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 180,
+                      child: ClipRRect(
                         borderRadius: BorderRadius.circular(15),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: TextField(
-                        controller: _ipController,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: _useRemoteRelay ? "Relay URL (http)" : "Agent base URL (http)",
-                          labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.all(16),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: ListView.builder(
+                              itemCount: _remoteAgents.length,
+                              itemBuilder: (context, idx) {
+                                final agent = _remoteAgents[idx];
+                                final agentId = agent['agentId']?.toString() ?? '';
+                                final selected = (_selectedRemoteAgentId?.trim() ?? '') == agentId;
+                                final online = agent['isOnline'] == true;
+
+                                return ListTile(
+                                  dense: true,
+                                  selected: selected,
+                                  selectedTileColor: Colors.white.withOpacity(0.12),
+                                  onTap: () => _connectToRemoteAgent(agent),
+                                  title: Text(
+                                    agent['name']?.toString() ?? agentId,
+                                    style: const TextStyle(color: Colors.white, fontSize: 14),
+                                  ),
+                                  subtitle: Text(
+                                    online ? 'online' : 'offline',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.7),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  trailing: Icon(
+                                    Icons.circle,
+                                    size: 10,
+                                    color: online ? Colors.greenAccent : Colors.white38,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      'No paired PCs yet. Pair using a code above.',
+                      style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                    ),
+                  ],
+                ] else ...[
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _GlassButton(
+                          label: 'Ping',
+                          onPressed: _ping,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _GlassButton(
+                          label: 'Connect WS',
+                          onPressed: _connectWs,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                if (_useRemoteRelay) ...[
                   const SizedBox(height: 12),
-                  ClipRRect(
+                  SizedBox(
+                    width: double.infinity,
+                    child: _GlassButton(
+                      label: _connectionService.isSearching
+                          ? 'Searching...'
+                          : 'Refresh local agents',
+                      onPressed: _connectionService.isSearching ? null : _searchAgents,
+                      isLoading: _connectionService.isSearching,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                SizedBox(
+                  height: 220,
+                  child: ClipRRect(
                     borderRadius: BorderRadius.circular(15),
                     child: BackdropFilter(
                       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -225,66 +432,6 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
                             color: Colors.white.withOpacity(0.3),
                             width: 1.5,
                           ),
-                        ),
-                        child: TextField(
-                          controller: _agentIdController,
-                          style: const TextStyle(color: Colors.white),
-                          decoration: InputDecoration(
-                            labelText: "Agent ID",
-                            labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.all(16),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                
-                // Кнопки с glassmorphism
-                Row(
-                  children: [
-                    Expanded(
-                      child: _GlassButton(
-                        label: "Ping!",
-                        onPressed: _ping,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _GlassButton(
-                        label: "Подключить WS",
-                        onPressed: _connectWs,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: _GlassButton(
-                    label: _connectionService.isSearching ? "Поиск..." : "Перезапустить Агента",
-                    onPressed: _connectionService.isSearching ? null : _searchAgents,
-                    isLoading: _connectionService.isSearching,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                
-                // Лог с glassmorphism
-                Expanded(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(15),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1.5,
-                        ),
                         ),
                         child: ListView.builder(
                           reverse: true,
@@ -303,6 +450,39 @@ class _ConnectionWidgetState extends State<ConnectionWidget> with AutomaticKeepA
                   ),
                 ),
               ],
+            ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInput({
+    required TextEditingController controller,
+    required String label,
+  }) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(15),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.3),
+              width: 1.5,
+            ),
+          ),
+          child: TextField(
+            controller: controller,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              labelText: label,
+              labelStyle: TextStyle(color: Colors.white.withOpacity(0.8)),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.all(16),
             ),
           ),
         ),
@@ -336,12 +516,12 @@ class _GlassButton extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 16),
               decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(onPressed == null ? 0.05 : 0.15),
-                        borderRadius: BorderRadius.circular(15),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
-                          width: 1.5,
-                        ),
+                color: Colors.white.withOpacity(onPressed == null ? 0.05 : 0.15),
+                borderRadius: BorderRadius.circular(15),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.3),
+                  width: 1.5,
+                ),
               ),
               child: isLoading
                   ? const SizedBox(
@@ -370,4 +550,3 @@ class _GlassButton extends StatelessWidget {
     );
   }
 }
-
