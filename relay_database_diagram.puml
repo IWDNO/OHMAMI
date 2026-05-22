@@ -1,0 +1,51 @@
+@startuml
+left to right direction
+skinparam linetype polyline
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+
+entity "mobile_devices" as mobile_devices {
+  * id : uuid <<PK>>
+  --
+  device_id : text <<UQ>>
+  device_name : text
+  token_hash : text
+  created_at : timestamptz
+  last_seen_at : timestamptz
+}
+
+entity "agents" as agents {
+  * id : uuid <<PK>>
+  --
+  agent_id : text <<UQ>>
+  name : text
+  created_at : timestamptz
+  last_seen_at : timestamptz
+}
+
+entity "pairings" as pairings {
+  * id : uuid <<PK>>
+  --
+  mobile_device_id : uuid <<FK>>
+  agent_db_id : uuid <<FK>>
+  created_at : timestamptz
+  revoked_at : timestamptz
+  --
+  mobile_device_id, agent_db_id <<UQ>>
+}
+
+entity "pairing_codes" as pairing_codes {
+  * id : uuid <<PK>>
+  --
+  agent_db_id : uuid <<FK>>
+  code : text <<UQ>>
+  created_at : timestamptz
+  expires_at : timestamptz
+  used_at : timestamptz
+}
+
+mobile_devices ||--o{ pairings : "mobile_device_id"
+agents ||--o{ pairings : "agent_db_id"
+agents ||--o{ pairing_codes : "agent_db_id"
+
+@enduml

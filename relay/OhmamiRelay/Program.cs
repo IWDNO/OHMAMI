@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -153,6 +154,99 @@ app.MapPost("/agents/{agentId}/proxy", async (string agentId, ProxyRequest reque
     }
 });
 
+app.MapGet("/agents/{agentId}/files/download", async (string agentId, string path, RelayDb db, RelayHub relay, HttpContext context) =>
+{
+    var device = await AuthenticateMobileDeviceAsync(context, db);
+    if (device is null)
+    {
+        return Results.Json(new { status = "error", message = "Unauthorized mobile device" }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (!await db.HasPairingAsync(device.Id, agentId, context.RequestAborted))
+    {
+        return Results.Json(new { status = "error", message = "This device is not paired with the agent" }, statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var endpoint = $"/fs/download?path={Uri.EscapeDataString(path)}";
+
+    try
+    {
+        var response = await relay.SendRequestAsync(agentId, new ProxyRequest("GET", endpoint), context.RequestAborted);
+        if (response.Status != 200 || response.Body is null)
+        {
+            return Results.Json(response.Body, statusCode: response.Status);
+        }
+
+        var payload = response.Body.Value;
+        var base64 = payload.TryGetProperty("contentBase64", out var base64Node) ? base64Node.GetString() : null;
+        if (string.IsNullOrWhiteSpace(base64))
+        {
+            return Results.Json(new { status = "error", message = "Relay did not return file content" }, statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        var bytes = Convert.FromBase64String(base64);
+        var contentType = payload.TryGetProperty("contentType", out var contentTypeNode)
+            ? contentTypeNode.GetString()
+            : "application/octet-stream";
+        var fileName = payload.TryGetProperty("fileName", out var fileNameNode)
+            ? fileNameNode.GetString()
+            : Path.GetFileName(path);
+
+        return Results.File(bytes, contentType ?? "application/octet-stream", fileName ?? Path.GetFileName(path));
+    }
+    catch (Exception ex) when (ex is KeyNotFoundException or TimeoutException or IOException or System.Net.WebSockets.WebSocketException or InvalidOperationException)
+    {
+        return ToRelayErrorResult(ex);
+    }
+});
+
+app.MapPost("/agents/{agentId}/files/upload", async (string agentId, string dest, RelayDb db, RelayHub relay, HttpContext context) =>
+{
+    var device = await AuthenticateMobileDeviceAsync(context, db);
+    if (device is null)
+    {
+        return Results.Json(new { status = "error", message = "Unauthorized mobile device" }, statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (!await db.HasPairingAsync(device.Id, agentId, context.RequestAborted))
+    {
+        return Results.Json(new { status = "error", message = "This device is not paired with the agent" }, statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    if (!context.Request.HasFormContentType)
+    {
+        return Results.BadRequest(new { status = "error", message = "Multipart form is required" });
+    }
+
+    var form = await context.Request.ReadFormAsync(context.RequestAborted);
+    var file = form.Files["file"] ?? form.Files.FirstOrDefault();
+    if (file == null || file.Length == 0)
+    {
+        return Results.BadRequest(new { status = "error", message = "File is required" });
+    }
+
+    await using var stream = file.OpenReadStream();
+    using var memory = new MemoryStream();
+    await stream.CopyToAsync(memory, context.RequestAborted);
+
+    var endpoint = $"/fs/upload-base64?dest={Uri.EscapeDataString(dest)}";
+    var body = JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(new
+    {
+        fileName = file.FileName,
+        contentBase64 = Convert.ToBase64String(memory.ToArray())
+    })).RootElement.Clone();
+
+    try
+    {
+        var response = await relay.SendRequestAsync(agentId, new ProxyRequest("POST", endpoint, Body: body), context.RequestAborted);
+        return Results.Json(response.Body, statusCode: response.Status);
+    }
+    catch (Exception ex) when (ex is KeyNotFoundException or TimeoutException or IOException or System.Net.WebSockets.WebSocketException or InvalidOperationException)
+    {
+        return ToRelayErrorResult(ex);
+    }
+});
+
 app.Map("/agent/ws", async (HttpContext context, RelayHub relay, RelayDb db) =>
 {
     if (!context.WebSockets.IsWebSocketRequest)
@@ -255,4 +349,17 @@ static bool AuthorizeBootstrapAgent(HttpContext context, RelayOptions options)
 
     return !string.IsNullOrWhiteSpace(provided) &&
            string.Equals(provided.Trim(), options.AgentBootstrapToken, StringComparison.Ordinal);
+}
+
+static IResult ToRelayErrorResult(Exception ex)
+{
+    return ex switch
+    {
+        KeyNotFoundException keyNotFound => Results.NotFound(new { status = "error", message = keyNotFound.Message }),
+        TimeoutException timeout => Results.Json(new { status = "error", message = timeout.Message }, statusCode: StatusCodes.Status504GatewayTimeout),
+        IOException io => Results.Json(new { status = "error", message = io.Message }, statusCode: StatusCodes.Status503ServiceUnavailable),
+        System.Net.WebSockets.WebSocketException ws => Results.Json(new { status = "error", message = ws.Message }, statusCode: StatusCodes.Status503ServiceUnavailable),
+        InvalidOperationException invalid => Results.Json(new { status = "error", message = invalid.Message }, statusCode: StatusCodes.Status503ServiceUnavailable),
+        _ => Results.Json(new { status = "error", message = ex.Message }, statusCode: StatusCodes.Status500InternalServerError)
+    };
 }

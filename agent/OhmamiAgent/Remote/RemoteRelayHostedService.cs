@@ -153,18 +153,35 @@ namespace OhmamiAgent.Remote
             }
 
             using var response = await client.SendAsync(request, ct);
-            var text = await response.Content.ReadAsStringAsync(ct);
             JsonElement? body = null;
+            var mediaType = response.Content.Headers.ContentType?.MediaType ?? "";
+            var isJson = mediaType.Contains("json", StringComparison.OrdinalIgnoreCase);
 
-            if (!string.IsNullOrWhiteSpace(text))
+            if (!isJson)
             {
-                try
+                var bytes = await response.Content.ReadAsByteArrayAsync(ct);
+                var payload = new
                 {
-                    body = JsonDocument.Parse(text).RootElement.Clone();
-                }
-                catch
+                    contentBase64 = Convert.ToBase64String(bytes),
+                    contentType = string.IsNullOrWhiteSpace(mediaType) ? "application/octet-stream" : mediaType,
+                    fileName = response.Content.Headers.ContentDisposition?.FileNameStar
+                        ?? response.Content.Headers.ContentDisposition?.FileName
+                };
+                body = JsonDocument.Parse(JsonSerializer.Serialize(payload)).RootElement.Clone();
+            }
+            else
+            {
+                var text = await response.Content.ReadAsStringAsync(ct);
+                if (!string.IsNullOrWhiteSpace(text))
                 {
-                    body = JsonDocument.Parse(JsonSerializer.Serialize(new { raw = text })).RootElement.Clone();
+                    try
+                    {
+                        body = JsonDocument.Parse(text).RootElement.Clone();
+                    }
+                    catch
+                    {
+                        body = JsonDocument.Parse(JsonSerializer.Serialize(new { raw = text })).RootElement.Clone();
+                    }
                 }
             }
 

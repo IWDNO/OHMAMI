@@ -17,7 +17,7 @@ enum ConnectionMode {
 }
 
 class ConnectionService extends ChangeNotifier {
-  static const String defaultRelayUrl = 'http://38.99.23.186:8080';
+  static const String defaultRelayUrl = 'http://92.63.193.25:8080';
   static const String _remoteDeviceIdKey = 'remote_device_id';
   static const String _remoteAccessTokenKey = 'remote_access_token';
   static const String _remoteRelayUrlKey = 'remote_relay_url';
@@ -132,6 +132,13 @@ class ConnectionService extends ChangeNotifier {
         throw Exception('Remote agent ID not set');
       }
 
+      if (endpoint.startsWith('/fs/download')) {
+        final encodedAgentId = Uri.encodeComponent(agentId);
+        final source = Uri.parse('http://placeholder$endpoint');
+        final relayUri = Uri.parse('$apiUrl/agents/$encodedAgentId/files/download${source.hasQuery ? '?${source.query}' : ''}');
+        return await http.get(relayUri, headers: authHeaders);
+      }
+
       final encodedAgentId = Uri.encodeComponent(agentId);
       final uri = Uri.parse('$apiUrl/agents/$encodedAgentId/proxy');
       final remoteBody = <String, Object?>{
@@ -177,7 +184,34 @@ class ConnectionService extends ChangeNotifier {
     }
 
     if (connectionMode == ConnectionMode.remote) {
-      throw Exception('Remote file upload is not implemented yet');
+      final agentId = remoteAgentId;
+      if (agentId == null || agentId.isEmpty) {
+        throw Exception('Remote agent ID not set');
+      }
+
+      final authHeaders = await _getRemoteAuthHeaders(apiUrl!);
+      final encodedAgentId = Uri.encodeComponent(agentId);
+      final source = Uri.parse('http://placeholder$endpoint');
+      final uri = Uri.parse('$apiUrl/agents/$encodedAgentId/files/upload${source.hasQuery ? '?${source.query}' : ''}');
+
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(authHeaders);
+
+      final fileStream = http.ByteStream(file.openRead());
+      final fileLength = await file.length();
+      request.files.add(http.MultipartFile(
+        'file',
+        fileStream,
+        fileLength,
+        filename: file.path.split('/').last.split('\\').last,
+      ));
+
+      if (fields != null) {
+        request.fields.addAll(fields);
+      }
+
+      final streamedResponse = await request.send();
+      return await http.Response.fromStream(streamedResponse);
     }
 
     final uri = Uri.parse('$apiUrl$endpoint');

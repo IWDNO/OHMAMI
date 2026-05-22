@@ -86,6 +86,46 @@ namespace OhmamiAgent.Api
             }
         }
 
+        public sealed class RemoteUploadRequest
+        {
+            public string? FileName { get; set; }
+            public string? ContentBase64 { get; set; }
+        }
+
+        [HttpPost("fs/upload-base64")]
+        [RequestSizeLimit(104857600)]
+        public async Task<IActionResult> UploadBase64([FromQuery] string dest, [FromBody] RemoteUploadRequest request)
+        {
+            try
+            {
+                if (request == null || string.IsNullOrWhiteSpace(request.FileName) || string.IsNullOrWhiteSpace(request.ContentBase64))
+                    return BadRequest(new { status = "error", message = "FileName and ContentBase64 are required" });
+
+                byte[] bytes;
+                try
+                {
+                    bytes = Convert.FromBase64String(request.ContentBase64);
+                }
+                catch (FormatException)
+                {
+                    return BadRequest(new { status = "error", message = "Invalid base64 content" });
+                }
+
+                var finalPath = _fs.PrepareUploadPath(dest, request.FileName);
+
+                await System.IO.File.WriteAllBytesAsync(finalPath, bytes);
+                return Ok(new { status = "ok", message = "Uploaded", path = finalPath });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return StatusCode(403, new { status = "error", message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { status = "error", message = ex.Message });
+            }
+        }
+
         [HttpPost("fs/mkdir")]
         public IActionResult Mkdir([FromQuery] string path)
         {
